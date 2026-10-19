@@ -92,8 +92,6 @@ cùng vị trí ô được lưu vào thư mục đó — chúng chứa nội du
 
 ## Giới hạn đã biết
 
-- Chưa thử với máy Windows chạy UltraViewer thật; mới kiểm thử qua relay thật giữa ứng dụng và
-  `host_demo`/`viewer_demo`. Đường kết nối LAN direct chưa được kiểm thử thực tế.
 - Khi chia sẻ máy qua **uinput** hoặc **XTest**, ký tự Unicode do máy kia gửi dạng VK_PACKET (ví dụ tiếng Việt
   gõ bằng Unikey) chỉ gõ được nếu là ASCII; gõ đầy đủ Unicode cần portal RemoteDesktop (GNOME, KDE).
 

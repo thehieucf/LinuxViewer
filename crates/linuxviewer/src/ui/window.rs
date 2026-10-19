@@ -42,7 +42,7 @@ pub struct MainWindow {
     share_status: gtk::Label,
     share_error: gtk::Label,
     share_button: gtk::Button,
-    share_spinner: adw::Spinner,
+    share_spinner: gtk::Spinner,
     // Header
     host_indicator: gtk::MenuButton,
     host_paused: gtk::Label,
@@ -304,7 +304,8 @@ impl MainWindow {
         share_active.append(&password_row);
         body.append(&share_active);
         let share_status_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        let share_spinner = adw::Spinner::new();
+        let share_spinner = gtk::Spinner::new();
+        share_spinner.set_spinning(true);
         let share_status = gtk::Label::new(None);
         share_status.add_css_class("dim-label");
         share_status.set_wrap(true);
@@ -924,6 +925,7 @@ impl MainWindow {
         dialog.set_response_appearance("control", adw::ResponseAppearance::Suggested);
         dialog.set_default_response(Some("view"));
         dialog.set_close_response("decline");
+        #[cfg(feature = "gtk_4_16")]
         dialog.set_prefer_wide_layout(true);
         let request_id = request.id;
         let weak = Rc::downgrade(self);
@@ -1051,12 +1053,12 @@ pub fn present_preferences(parent: &Rc<MainWindow>) {
         settings::update(|s| s.remember_partners = active);
     });
     history.add(&remember);
-    let clear = adw::ButtonRow::builder().title(tr("Clear recent partners")).build();
+    let clear = adw::ActionRow::builder().title(tr("Clear recent partners")).activatable(true).build();
     let viewer = parent.viewer.clone();
     clear.connect_activated(move |_| viewer.clear_recent());
     history.add(&clear);
-    let forget = adw::ButtonRow::builder().title(tr("Forget saved passwords")).build();
-    forget.add_css_class("destructive-action");
+    let forget = adw::ActionRow::builder().title(tr("Forget saved passwords")).activatable(true).build();
+    forget.add_css_class("error");
     let weak = Rc::downgrade(parent);
     forget.connect_activated(move |_| {
         let weak = weak.clone();

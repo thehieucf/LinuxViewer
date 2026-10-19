@@ -14,13 +14,20 @@ crates/ultraviewer-protocol/   Engine giao thức (port 1:1 từ UltraViewerProt
   tests/codec.rs               41 test vector byte-level port từ bộ test Swift
   examples/                    loopback, host_demo, viewer_demo, tls_probe (kiểm thử qua relay thật)
 crates/linuxviewer/            Ứng dụng GTK4 (giao diện, chụp màn hình, input, âm thanh)
-packaging/                     .desktop, metainfo, udev rule cho uinput, PKGBUILD (Arch)
+packaging/                     .desktop, metainfo, udev rule, PKGBUILD, script build .deb/AppImage
 install.sh                     Build + cài đặt / gỡ cài đặt
 ```
 
-## Yêu cầu
+## Tải về
 
-Rust ≥ 1.80, GTK ≥ 4.16, libadwaita ≥ 1.6, OpenSSL, libjpeg-turbo (turbojpeg), libpulse,
+Bản cài sẵn ở trang [Releases](https://github.com/thehieucf/LinuxViewer/releases/latest):
+
+- `.deb` — Ubuntu 24.04+, Debian 13, Linux Mint 22…: `sudo apt install ./linuxviewer_<phiên bản>_amd64.deb`
+- `AppImage` — hầu hết distro x86_64 (glibc ≥ 2.39, có PipeWire): `chmod +x LinuxViewer-*.AppImage && ./LinuxViewer-*.AppImage`
+
+## Yêu cầu (build từ mã nguồn)
+
+Rust ≥ 1.80, GTK ≥ 4.16, libadwaita ≥ 1.6 (hoặc GTK 4.14 / libadwaita 1.5 với `--no-default-features`), OpenSSL, libjpeg-turbo (turbojpeg), libpulse,
 PipeWire, xdg-desktop-portal (+ backend của desktop), clang (bindgen cho PipeWire).
 Tùy chọn: `ffmpeg` (quay video), một Secret Service như gnome-keyring/KWallet (lưu mật khẩu).
 
@@ -45,6 +52,10 @@ sudo ./install.sh --system        # vào /usr/local + udev rule cho /dev/uinput
 ./install.sh --uninstall          # gỡ (thêm --system nếu đã cài hệ thống)
 cd packaging && makepkg -si       # Arch: tạo gói pacman từ thư mục mã nguồn này
 ```
+
+Tạo gói phát hành (`.deb` + AppImage, build trong Docker Ubuntu 24.04 để chạy được trên distro cũ hơn):
+`packaging/release.sh` → `dist/`. Các gói này build với `--no-default-features` (API GTK 4.14 / libadwaita 1.5);
+mặc định (GTK ≥ 4.16) ứng dụng chỉ tải lên GPU phần màn hình thay đổi.
 
 udev rule `60-linuxviewer-uinput.rules` cho phép người dùng đang đăng nhập tạo bàn phím/chuột ảo,
 cần cho chế độ cho phép điều khiển trên compositor không có portal RemoteDesktop (Hyprland, sway).

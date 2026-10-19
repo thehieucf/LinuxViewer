@@ -63,6 +63,14 @@ fn cache_directory() -> Option<PathBuf> {
     Some(base.join("linuxviewer").join("intermediates"))
 }
 
+const SYSTEM_CA_BUNDLES: &[&str] = &[
+    "/etc/ssl/certs/ca-certificates.crt",                // Debian, Ubuntu, Arch, Gentoo
+    "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem", // Fedora, RHEL
+    "/etc/pki/tls/certs/ca-bundle.crt",
+    "/etc/ssl/ca-bundle.pem",                            // openSUSE
+    "/etc/ssl/cert.pem",                                 // Alpine, Arch
+];
+
 fn connector() -> Result<SslConnector, TransportError> {
     let tls = |e: openssl::error::ErrorStack| TransportError::Tls(e.to_string());
     let mut state = state().lock().unwrap_or_else(|e| e.into_inner());
@@ -70,6 +78,13 @@ fn connector() -> Result<SslConnector, TransportError> {
         return Ok(connector.clone());
     }
     let mut builder = SslConnector::builder(SslMethod::tls_client()).map_err(tls)?;
+    // A bundled OpenSSL (AppImage) looks for roots under its build-time
+    // directory; also trust the distribution's bundle wherever it lives.
+    if std::env::var_os("SSL_CERT_FILE").is_none() {
+        if let Some(bundle) = SYSTEM_CA_BUNDLES.iter().find(|path| std::path::Path::new(path).is_file()) {
+            let _ = builder.load_verify_locations(Some(std::path::Path::new(bundle)), None);
+        }
+    }
     builder.set_verify(SslVerifyMode::PEER);
     builder.set_min_proto_version(Some(SslVersion::TLS1_2)).map_err(tls)?;
     for der in &state.intermediates {

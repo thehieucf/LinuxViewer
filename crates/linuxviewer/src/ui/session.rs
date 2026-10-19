@@ -181,7 +181,8 @@ impl SessionPage {
         status_box.set_valign(gtk::Align::Center);
         status_box.add_css_class("osd");
         status_box.add_css_class("session-status");
-        let spinner = adw::Spinner::new();
+        let spinner = gtk::Spinner::new();
+        spinner.set_spinning(true);
         spinner.set_size_request(32, 32);
         let status_label = gtk::Label::new(None);
         status_label.set_wrap(true);

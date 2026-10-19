@@ -306,26 +306,38 @@ impl RemoteScreen {
     pub fn set_frame(&self, width: usize, height: usize, pixels: Arc<Vec<u8>>, damage: Option<(usize, usize, usize, usize)>) {
         let imp = self.imp();
         let bytes = glib::Bytes::from_owned(SharedPixels(pixels));
-        let mut builder = gdk::MemoryTextureBuilder::new()
-            .set_bytes(Some(&bytes))
-            .set_width(width as i32)
-            .set_height(height as i32)
-            .set_stride(width * 4)
-            .set_format(gdk::MemoryFormat::B8g8r8a8Premultiplied);
-        let previous = imp.texture.borrow().clone();
-        if let (Some(previous), Some((x, y, w, h))) = (previous, damage) {
-            if previous.width() == width as i32 && previous.height() == height as i32 {
-                let region = gtk::cairo::Region::create_rectangle(&gtk::cairo::RectangleInt::new(x as i32, y as i32, w as i32, h as i32));
-                builder = builder.set_update_texture(Some(&previous)).set_update_region(Some(&region));
-            }
-        }
-        let texture = builder.build();
+        let texture = Self::frame_texture(imp.texture.borrow().as_ref(), width, height, &bytes, damage);
         let size_changed = imp.texture.borrow().as_ref().map(|t| (t.width(), t.height())) != Some((width as i32, height as i32));
         *imp.texture.borrow_mut() = Some(texture);
         if size_changed && imp.actual_size.get() {
             self.queue_resize();
         }
         self.queue_draw();
+    }
+
+    #[cfg(feature = "gtk_4_16")]
+    fn frame_texture(previous: Option<&gdk::Texture>, width: usize, height: usize, bytes: &glib::Bytes,
+                     damage: Option<(usize, usize, usize, usize)>) -> gdk::Texture {
+        let mut builder = gdk::MemoryTextureBuilder::new()
+            .set_bytes(Some(bytes))
+            .set_width(width as i32)
+            .set_height(height as i32)
+            .set_stride(width * 4)
+            .set_format(gdk::MemoryFormat::B8g8r8a8Premultiplied);
+        if let (Some(previous), Some((x, y, w, h))) = (previous, damage) {
+            if previous.width() == width as i32 && previous.height() == height as i32 {
+                let region = gtk::cairo::Region::create_rectangle(&gtk::cairo::RectangleInt::new(x as i32, y as i32, w as i32, h as i32));
+                builder = builder.set_update_texture(Some(previous)).set_update_region(Some(&region));
+            }
+        }
+        builder.build()
+    }
+
+    /// GTK 4.14 cannot update a texture in place; the whole frame is uploaded.
+    #[cfg(not(feature = "gtk_4_16"))]
+    fn frame_texture(_previous: Option<&gdk::Texture>, width: usize, height: usize, bytes: &glib::Bytes,
+                     _damage: Option<(usize, usize, usize, usize)>) -> gdk::Texture {
+        gdk::MemoryTexture::new(width as i32, height as i32, gdk::MemoryFormat::B8g8r8a8Premultiplied, bytes, width * 4).upcast()
     }
 
     pub fn clear(&self) {

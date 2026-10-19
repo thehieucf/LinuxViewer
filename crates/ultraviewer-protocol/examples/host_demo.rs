@@ -3,7 +3,8 @@
 //! test pattern, logs decoded input and echoes chat/clipboard.
 //!
 //! Run with: HOST_MAC=02AABBCCDDEE cargo run -p ultraviewer-protocol --example host_demo
-//! (a distinct hardware address keeps its ID separate from this computer's).
+//! (a distinct hardware address keeps its ID separate from this computer's;
+//! HOST_PASSWORD fixes the otherwise random password).
 
 use std::time::{Duration, Instant};
 
@@ -28,7 +29,8 @@ fn registration(mac: String) -> ClientRegistrationRequest {
     let identity: [u8; 16] = rng.gen();
     ClientRegistrationRequest {
         device_identity: Md5::digest(identity).iter().map(|b| format!("{b:02X}")).collect(),
-        password: (0..8).map(|_| char::from(b'0' + rng.gen_range(0..10))).collect(),
+        password: std::env::var("HOST_PASSWORD")
+            .unwrap_or_else(|_| (0..8).map(|_| char::from(b'0' + rng.gen_range(0..10))).collect()),
         local_address: primary_ipv4(),
         computer_name_utf8_base64: base64::Engine::encode(&base64::engine::general_purpose::STANDARD, "Máy thử nghiệm"),
         client_version: ultraviewer_protocol::CLIENT_VERSION.into(),

@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=LinuxViewer
+GenericName=Remote Desktop
+GenericName[vi]=Điều khiển máy tính từ xa
+Comment=Control another computer or share this one (UltraViewer compatible)
+Comment[vi]=Điều khiển máy tính khác hoặc chia sẻ máy này (tương thích UltraViewer)
+Exec=linuxviewer
+Icon=io.github.linuxviewer
+Terminal=false
+Categories=Network;RemoteAccess;GTK;
+Keywords=UltraViewer;remote;desktop;support;điều khiển;từ xa;
+StartupNotify=true
+StartupWMClass=io.github.linuxviewer
+SingleMainWindow=true

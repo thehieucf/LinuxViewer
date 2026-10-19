@@ -1,0 +1,19 @@
+# Build output
+/target/
+/dist/
+
+# Original Mac sources are kept only as a local reference
+/MacViewer/
+
+# Secrets and local registrations
+.env
+.env.*
+registration*.json
+*.multipart
+
+# Logs and editor / OS files
+*.log
+.vscode/
+.idea/
+*.swp
+*~

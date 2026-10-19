@@ -1,0 +1,129 @@
+/* LinuxViewer interface styles (libadwaita named colors). */
+
+.home-card {
+  border-radius: 14px;
+}
+
+.card-header {
+  padding: 16px 20px;
+}
+
+.card-body {
+  padding: 18px 20px;
+}
+
+.card-footer {
+  padding: 14px 20px 18px 20px;
+}
+
+.card-badge {
+  padding: 10px;
+  border-radius: 12px;
+}
+
+.card-badge.accent-blue {
+  background-color: alpha(@blue_3, 0.14);
+  color: @blue_4;
+}
+
+.card-badge.accent-teal {
+  background-color: alpha(#2190a4, 0.14);
+  color: #2190a4;
+}
+
+.card-kicker {
+  font-size: 0.75em;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.card-kicker.accent-blue {
+  color: @blue_4;
+}
+
+.card-kicker.accent-teal {
+  color: #2190a4;
+}
+
+entry.id-entry {
+  font-family: monospace;
+  font-size: 1.15em;
+  min-height: 38px;
+}
+
+.id-display {
+  font-family: monospace;
+  font-size: 1.55em;
+  font-weight: 600;
+}
+
+button.share-action {
+  background-color: #2190a4;
+  color: white;
+}
+
+button.share-action:hover {
+  background-color: shade(#2190a4, 1.08);
+}
+
+.recent-row .title {
+  font-family: monospace;
+  font-size: 1.15em;
+  font-weight: 600;
+}
+
+.host-indicator {
+  color: @warning_color;
+}
+
+.session-toolbar {
+  padding: 4px 8px;
+  background-color: @headerbar_bg_color;
+  border-bottom: 1px solid @headerbar_shade_color;
+}
+
+.remote-background,
+remote-screen {
+  background-color: black;
+}
+
+.session-status {
+  padding: 24px 32px;
+  border-radius: 14px;
+}
+
+.chat-panel {
+  background-color: @sidebar_bg_color;
+}
+
+.chat-bubble {
+  padding: 8px 12px;
+  border-radius: 14px;
+}
+
+.chat-bubble.outgoing {
+  background-color: @accent_bg_color;
+  color: @accent_fg_color;
+}
+
+.chat-bubble.incoming {
+  background-color: alpha(@view_fg_color, 0.08);
+}
+
+.ink-swatch {
+  border-radius: 8px;
+  min-width: 16px;
+  min-height: 16px;
+}
+
+.ink-red {
+  background-color: #ff3b30;
+}
+
+.ink-yellow {
+  background-color: #ffcc00;
+}
+
+.ink-blue {
+  background-color: #007aff;
+}

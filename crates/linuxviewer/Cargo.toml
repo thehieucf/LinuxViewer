@@ -1,0 +1,26 @@
+[package]
+name = "linuxviewer"
+description = "UltraViewer-compatible remote desktop client for Linux"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+ultraviewer-protocol = { path = "../ultraviewer-protocol" }
+gtk = { package = "gtk4", version = "0.11", features = ["v4_16"] }
+adw = { package = "libadwaita", version = "0.9", features = ["v1_6"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "io-util", "time", "sync", "macros", "fs"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand = "0.8"
+md-5 = "0.10"
+base64 = "0.22"
+log = "0.4"
+env_logger = "0.11"
+libc = "0.2"
+secret-service = { version = "5", features = ["rt-tokio-crypto-rust"] }
+ashpd = { version = "0.13", default-features = false, features = ["tokio", "screencast", "remote_desktop"] }
+pipewire = "0.9"
+enumflags2 = "0.7"
+x11rb = { version = "0.13", features = ["xtest", "randr"] }

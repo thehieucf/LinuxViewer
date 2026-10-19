@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.linuxviewer</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>LinuxViewer</name>
+  <summary>UltraViewer-compatible remote desktop</summary>
+  <summary xml:lang="vi">Điều khiển máy tính từ xa tương thích UltraViewer</summary>
+  <description>
+    <p>Control another computer with its UltraViewer ID and password, or share this Linux computer.
+       Screen, keyboard and mouse, computer audio, chat, clipboard, screenshots and recording.</p>
+    <p>LinuxViewer is an independent implementation and is not an official UltraViewer product.</p>
+  </description>
+  <url type="homepage">https://github.com/thehieucf/LinuxViewer</url>
+  <url type="bugtracker">https://github.com/thehieucf/LinuxViewer/issues</url>
+  <launchable type="desktop-id">io.github.linuxviewer.desktop</launchable>
+  <categories>
+    <category>Network</category>
+    <category>RemoteAccess</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+</component>

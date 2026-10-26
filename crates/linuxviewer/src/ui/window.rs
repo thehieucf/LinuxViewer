@@ -988,14 +988,17 @@ pub fn present_about(parent: &impl IsA<gtk::Widget>) {
         .version(env!("CARGO_PKG_VERSION"))
         .comments(format!(
             "{}\n\n{}",
-            tr("An independent Linux client for UltraViewer interoperability, ported from MacViewer."),
-            tr("LinuxViewer is an independent, community-built implementation. It is not an official UltraViewer product. Only connect to computers you are authorized to access.")
+            tr("An independent Linux client for UltraViewer interoperability, ported from MacViewer by thehieucf."),
+            tr("LinuxViewer is an independent implementation and not an official UltraViewer product. Only connect to computers you are authorized to access.")
         ))
         .license_type(gtk::License::MitX11)
-        .website("https://ultraviewer.net")
-        .developer_name("LinuxViewer contributors")
+        .website("https://github.com/thehieucf/LinuxViewer")
+        .issue_url("https://github.com/thehieucf/LinuxViewer/issues")
+        .developer_name("thehieucf")
+        .developers(["thehieucf https://github.com/thehieucf"])
         .build();
-    about.add_link("MacViewer", "https://github.com/DeanOpen/MacViewer");
+    about.add_credit_section(Some(&tr("Ported from")), &["MacViewer https://github.com/DeanOpen/MacViewer"]);
+    about.add_link("UltraViewer", "https://ultraviewer.net");
     about.present(Some(parent));
 }
 

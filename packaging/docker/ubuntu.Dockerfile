@@ -1,4 +1,4 @@
-# Release build environment: Ubuntu 24.04 (glibc 2.39, GTK 4.14, libadwaita 1.5)
+# .deb and AppImage build environment: Ubuntu 24.04 (glibc 2.39, GTK 4.14, libadwaita 1.5)
 # so the .deb and the AppImage run on Ubuntu 24.04+, Debian 13 and newer distros.
 FROM ubuntu:24.04
 

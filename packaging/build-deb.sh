@@ -34,7 +34,7 @@ cat > "$stage/DEBIAN/control" <<CONTROL
 Package: linuxviewer
 Version: $version
 Architecture: $arch
-Maintainer: LinuxViewer contributors <https://github.com/thehieucf/LinuxViewer>
+Maintainer: thehieucf <69306656+thehieucf@users.noreply.github.com>
 Installed-Size: $size
 Depends: $depends
 Recommends: xdg-desktop-portal, pipewire, gnome-keyring | kwalletmanager | keepassxc

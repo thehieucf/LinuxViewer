@@ -1,6 +1,6 @@
 # Arch Linux package built from this source tree:  cd packaging && makepkg -si
 pkgname=linuxviewer
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="UltraViewer-compatible remote desktop client for Linux"
 url='https://github.com/thehieucf/LinuxViewer'
@@ -14,24 +14,25 @@ optdepends=('ffmpeg: screen recording'
             'xdg-desktop-portal-kde: screen sharing on KDE Plasma'
             'xdg-desktop-portal-wlr: screen sharing on sway/wlroots'
             'xdg-desktop-portal-hyprland: screen sharing on Hyprland')
-options=('!lto')
+options=('!lto' '!debug')
 
 _tree="$(realpath "$startdir/..")"
 
+# A CARGO_TARGET_DIR from the environment is reused (packaging/release.sh).
 build() {
     cd "$_tree"
-    export CARGO_TARGET_DIR="$srcdir/target"
+    export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$srcdir/target}"
     cargo build --release --locked -p linuxviewer
 }
 
 check() {
     cd "$_tree"
-    export CARGO_TARGET_DIR="$srcdir/target"
+    export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$srcdir/target}"
     cargo test --release --locked --workspace
 }
 
 package() {
     cd "$_tree"
-    BINARY="$srcdir/target/release/linuxviewer" PREFIX=/usr DESTDIR="$pkgdir" \
+    BINARY="${CARGO_TARGET_DIR:-$srcdir/target}/release/linuxviewer" PREFIX=/usr DESTDIR="$pkgdir" \
         UDEV_RULES_DIR=/usr/lib/udev/rules.d ./install.sh --system
 }

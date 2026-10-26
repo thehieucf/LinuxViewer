@@ -11,6 +11,9 @@
        Screen, keyboard and mouse, computer audio, chat, clipboard, screenshots and recording.</p>
     <p>LinuxViewer is an independent implementation and is not an official UltraViewer product.</p>
   </description>
+  <developer id="io.github.thehieucf">
+    <name>thehieucf</name>
+  </developer>
   <url type="homepage">https://github.com/thehieucf/LinuxViewer</url>
   <url type="bugtracker">https://github.com/thehieucf/LinuxViewer/issues</url>
   <launchable type="desktop-id">io.github.linuxviewer.desktop</launchable>

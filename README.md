@@ -1,6 +1,6 @@
 # LinuxViewer
 
-Ứng dụng Linux tương thích **UltraViewer**, port từ [MacViewer](https://github.com/DeanOpen/MacViewer) (Swift/SwiftUI) sang Rust + GTK4/libadwaita.
+Ứng dụng Linux tương thích **UltraViewer**, do **thehieucf** port từ [MacViewer](https://github.com/DeanOpen/MacViewer) (Swift/SwiftUI) sang Rust + GTK4/libadwaita.
 Điều khiển máy tính khác, hoặc chia sẻ máy Linux này. Không dùng Wine, không chạy mã Windows.
 
 > LinuxViewer là bản triển khai độc lập, không phải sản phẩm chính thức của UltraViewer.
@@ -14,7 +14,7 @@ crates/ultraviewer-protocol/   Engine giao thức (port 1:1 từ UltraViewerProt
   tests/codec.rs               41 test vector byte-level port từ bộ test Swift
   examples/                    loopback, host_demo, viewer_demo, tls_probe (kiểm thử qua relay thật)
 crates/linuxviewer/            Ứng dụng GTK4 (giao diện, chụp màn hình, input, âm thanh)
-packaging/                     .desktop, metainfo, udev rule, PKGBUILD, script build .deb/AppImage
+packaging/                     .desktop, metainfo, udev rule, PKGBUILD, .spec, script build gói phát hành
 install.sh                     Build + cài đặt / gỡ cài đặt
 ```
 
@@ -22,8 +22,12 @@ install.sh                     Build + cài đặt / gỡ cài đặt
 
 Bản cài sẵn ở trang [Releases](https://github.com/thehieucf/LinuxViewer/releases/latest):
 
-- `.deb` — Ubuntu 24.04+, Debian 13, Linux Mint 22…: `sudo apt install ./linuxviewer_<phiên bản>_amd64.deb`
-- `AppImage` — hầu hết distro x86_64 (glibc ≥ 2.39, có PipeWire): `chmod +x LinuxViewer-*.AppImage && ./LinuxViewer-*.AppImage`
+| Distro | File | Cài đặt |
+|---|---|---|
+| Ubuntu 24.04+, Debian 13, Linux Mint 22… | `linuxviewer_<phiên bản>_amd64.deb` | `sudo apt install ./linuxviewer_*_amd64.deb` |
+| Arch Linux, CachyOS, EndeavourOS | `linuxviewer-<phiên bản>-1-x86_64.pkg.tar.zst` | `sudo pacman -U linuxviewer-*-x86_64.pkg.tar.zst` |
+| Fedora 43+, openSUSE Tumbleweed | `linuxviewer-<phiên bản>-1.x86_64.rpm` | `sudo dnf install ./linuxviewer-*.rpm` / `sudo zypper install --allow-unsigned-rpm ./linuxviewer-*.rpm` |
+| Distro khác (x86_64, glibc ≥ 2.39, có PipeWire) | `LinuxViewer-<phiên bản>-x86_64.AppImage` | `chmod +x LinuxViewer-*.AppImage && ./LinuxViewer-*.AppImage` |
 
 ## Yêu cầu (build từ mã nguồn)
 
@@ -53,9 +57,10 @@ sudo ./install.sh --system        # vào /usr/local + udev rule cho /dev/uinput
 cd packaging && makepkg -si       # Arch: tạo gói pacman từ thư mục mã nguồn này
 ```
 
-Tạo gói phát hành (`.deb` + AppImage, build trong Docker Ubuntu 24.04 để chạy được trên distro cũ hơn):
-`packaging/release.sh` → `dist/`. Các gói này build với `--no-default-features` (API GTK 4.14 / libadwaita 1.5);
-mặc định (GTK ≥ 4.16) ứng dụng chỉ tải lên GPU phần màn hình thay đổi.
+Tạo gói phát hành: `packaging/release.sh [deb] [appimage] [arch] [rpm]` → `dist/`, mỗi gói build trong
+container Docker của distro tương ứng (`packaging/docker/`). `.deb` và AppImage build trên Ubuntu 24.04 với
+`--no-default-features` (API GTK 4.14 / libadwaita 1.5); các gói khác và bản build mặc định (GTK ≥ 4.16)
+chỉ tải lên GPU phần màn hình thay đổi.
 
 udev rule `60-linuxviewer-uinput.rules` cho phép người dùng đang đăng nhập tạo bàn phím/chuột ảo,
 cần cho chế độ cho phép điều khiển trên compositor không có portal RemoteDesktop (Hyprland, sway).
@@ -73,6 +78,16 @@ cần cho chế độ cho phép điều khiển trên compositor không có port
   RemoteDesktop, **uinput** (Hyprland/sway — cần quyền ghi `/dev/uinput`, ví dụ thuộc nhóm `input`) hoặc XTest (X11);
   chấp thuận từng kết nối, chỉ xem/cho phép điều khiển, chat, clipboard.
 - Giao diện Tiếng Việt / English (Cài đặt → Ngôn ngữ; mặc định theo `LC_MESSAGES`).
+
+## Gõ tiếng Việt khi điều khiển từ xa
+
+Để gõ tiếng Việt tốt nhất:
+
+- **Máy điều khiển** (máy chạy LinuxViewer): để bộ gõ ở chế độ **tiếng Anh** (tắt gõ tiếng Việt của fcitx5/ibus).
+- **Máy được điều khiển**: bật bộ gõ **tiếng Việt** ở đó (Unikey, EVKey…).
+
+Khi đó phím được gửi nguyên trạng và bộ gõ của máy kia tự ghép dấu; bật tiếng Việt ở cả hai máy
+dễ bị sai dấu.
 
 ## Khác biệt so với bản Mac
 

@@ -374,6 +374,7 @@ static VIETNAMESE: &[(&str, &str)] = &[
     ("Keyboard and mouse control is unavailable: {}", "Không thể điều khiển bàn phím và chuột: {}"),
     ("Remote control needs write access to /dev/uinput (add your user to the input group) or a desktop with remote-desktop portal support.", "Điều khiển từ xa cần quyền ghi /dev/uinput (thêm người dùng vào nhóm input) hoặc môi trường desktop hỗ trợ portal RemoteDesktop."),
     // About
-    ("An independent Linux client for UltraViewer interoperability, ported from MacViewer.", "Ứng dụng Linux độc lập, tương thích với UltraViewer, được port từ MacViewer."),
-    ("LinuxViewer is an independent, community-built implementation. It is not an official UltraViewer product. Only connect to computers you are authorized to access.", "LinuxViewer là bản triển khai độc lập do cộng đồng xây dựng, không phải sản phẩm chính thức của UltraViewer. Chỉ kết nối tới những máy tính bạn được phép truy cập."),
+    ("An independent Linux client for UltraViewer interoperability, ported from MacViewer by thehieucf.", "Ứng dụng Linux độc lập, tương thích với UltraViewer, được thehieucf port từ MacViewer."),
+    ("Ported from", "Port từ"),
+    ("LinuxViewer is an independent implementation and not an official UltraViewer product. Only connect to computers you are authorized to access.", "LinuxViewer là bản triển khai độc lập, không phải sản phẩm chính thức của UltraViewer. Chỉ kết nối tới những máy tính bạn được phép truy cập."),
 ];

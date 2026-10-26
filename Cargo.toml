@@ -5,10 +5,10 @@ members = ["crates/ultraviewer-protocol", "crates/linuxviewer"]
 exclude = ["MacViewer"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
-authors = ["LinuxViewer contributors"]
+authors = ["thehieucf"]
 repository = "https://github.com/thehieucf/LinuxViewer"
 
 [profile.release]

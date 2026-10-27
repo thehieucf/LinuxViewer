@@ -54,7 +54,11 @@ pub struct SideSwitchApproval {
 #[derive(Debug, Clone)]
 pub enum HostEvent {
     Status(String),
+    /// Also sent again after the command connection was re-established.
     Registered(String),
+    /// The command connection dropped; an active viewer keeps its relay while
+    /// this computer registers again.
+    Reconnecting,
     Request(IncomingRequest),
     Connected(IncomingRequest),
     CaptureRequested(u64),
@@ -281,6 +285,10 @@ pub fn start(configuration: HostConfiguration) -> Result<HostStreams, HostError>
         events: event_tx,
         inbox: inbox_tx,
         command: None,
+        command_id: 0,
+        command_heard: Instant::now(),
+        reconnect_at: None,
+        reconnect_attempts: 0,
         relay: None,
         relay_id: 0,
         relay_request: None,
@@ -335,8 +343,8 @@ enum PeerPhase {
 }
 
 enum Inbox {
-    CommandOpened(Result<Connection, TransportError>),
-    CommandReader(ReaderEvent),
+    CommandOpened(u64, Result<Connection, TransportError>),
+    CommandReader(u64, ReaderEvent),
     RelayOpened(u64, Result<Connection, TransportError>),
     RelayReader(u64, ReaderEvent),
 }
@@ -399,6 +407,11 @@ struct HostActor {
     events: mpsc::Sender<HostEvent>,
     inbox: mpsc::Sender<Inbox>,
     command: Option<Connection>,
+    command_id: u64,
+    /// Last frame from the command service, which echoes every keepalive.
+    command_heard: Instant,
+    reconnect_at: Option<Instant>,
+    reconnect_attempts: u32,
     relay: Option<Connection>,
     relay_id: u64,
     relay_request: Option<RelayRequest>,
@@ -437,6 +450,11 @@ async fn sleep_until_opt(at: Option<Instant>) {
     }
 }
 
+/// Two missed keepalive echoes.
+const COMMAND_SILENCE: Duration = Duration::from_secs(75);
+/// Seconds between attempts to reach the command service again.
+const RECONNECT_DELAYS: [u64; 5] = [2, 5, 10, 20, 30];
+
 fn system_tag(payload: &[u8], separator: u8) -> String {
     let tag: Vec<u8> = payload.iter().copied().take_while(|&b| b != separator).collect();
     if tag.is_empty() || tag.len() > 3 || !tag.iter().all(u8::is_ascii_digit) {
@@ -464,8 +482,12 @@ impl HostActor {
                 _ = sleep_until_opt(self.registration_deadline) => {
                     self.registration_deadline = None;
                     if !self.registered {
-                        self.finish(Some(HostError::TimedOut)).await;
+                        self.command_failed(HostError::TimedOut).await;
                     }
+                }
+                _ = sleep_until_opt(self.reconnect_at) => {
+                    self.reconnect_at = None;
+                    self.open_command();
                 }
                 _ = sleep_until_opt(self.relay_deadline) => {
                     self.relay_deadline = None;
@@ -493,6 +515,10 @@ impl HostActor {
     }
 
     fn open_command(&mut self) {
+        self.command_id += 1;
+        let id = self.command_id;
+        // Reconnecting is reported once, by HostEvent::Reconnecting.
+        let first = self.reconnect_attempts == 0;
         let inbox = self.inbox.clone();
         let events = self.events.clone();
         let mut options = OpenOptions::new(self.configuration.command_host.clone(), self.configuration.listener_port,
@@ -500,9 +526,11 @@ impl HostActor {
         options.initial_request = relay::http_preamble(COMMAND_HOST, HttpMethod::Post).ok();
         options.expects_http_response = true;
         tokio::spawn(async move {
-            let _ = events.send(HostEvent::Status("Getting this computer's UltraViewer ID…".into())).await;
-            let result = transport::open_command_connection(options, Duration::from_secs(3), inbox.clone(), Inbox::CommandReader).await;
-            let _ = inbox.send(Inbox::CommandOpened(result)).await;
+            if first {
+                let _ = events.send(HostEvent::Status("Getting this computer's UltraViewer ID…".into())).await;
+            }
+            let result = transport::open_command_connection(options, Duration::from_secs(3), inbox.clone(), move |event| Inbox::CommandReader(id, event)).await;
+            let _ = inbox.send(Inbox::CommandOpened(id, result)).await;
         });
     }
 
@@ -680,9 +708,11 @@ impl HostActor {
 
     async fn handle_inbox(&mut self, message: Inbox) {
         match message {
-            Inbox::CommandOpened(result) => match result {
+            Inbox::CommandOpened(id, result) => match result {
+                _ if id != self.command_id || !self.running => {}
                 Ok(connection) => {
                     self.command = Some(connection);
+                    self.command_heard = Instant::now();
                     self.registration_deadline = Some(Instant::now() + Duration::from_secs(20));
                     let envelope = match self.configuration.registration.relay_envelope(&LegacyCommandCipher::desktop_server_commands()) {
                         Ok(envelope) => envelope,
@@ -692,10 +722,12 @@ impl HostActor {
                         self.finish(Some(error)).await;
                     }
                 }
-                Err(error) => self.finish(Some(error.into())).await,
+                Err(error) => self.command_failed(error.into()).await,
             },
-            Inbox::CommandReader(event) => match event {
+            Inbox::CommandReader(id, event) => match event {
+                _ if id != self.command_id || self.command.is_none() => {}
                 ReaderEvent::Frame(bytes) => {
+                    self.command_heard = Instant::now();
                     let result = match RelayEnvelope::decode(&bytes) {
                         Ok(RelayEnvelope::System { payload }) => self.consume_command(&payload).await,
                         Ok(_) => Ok(()),
@@ -706,8 +738,7 @@ impl HostActor {
                     }
                 }
                 ReaderEvent::Closed(error) => {
-                    self.command = None;
-                    self.finish(Some(error.map(HostError::from).unwrap_or(HostError::RelayUnavailable))).await;
+                    self.command_failed(error.map(HostError::from).unwrap_or(HostError::RelayUnavailable)).await;
                 }
             },
             Inbox::RelayOpened(id, result) => {
@@ -754,8 +785,14 @@ impl HostActor {
             self.registration_reply = Some(reply.clone());
             self.registered = true;
             self.registration_deadline = None;
+            if self.reconnect_attempts > 0 {
+                log::info!("registered again after {} attempt(s)", self.reconnect_attempts);
+                self.reconnect_attempts = 0;
+            }
             self.emit(HostEvent::Registered(reply.assigned_id_text())).await;
-            self.keepalive_at = Some(Instant::now() + Duration::from_secs(30));
+            if self.keepalive_at.is_none() {
+                self.keepalive_at = Some(Instant::now() + Duration::from_secs(30));
+            }
         } else if tag == "8" {
             // A lookup made on behalf of an outgoing session.
             let correlation = std::str::from_utf8(payload).ok().and_then(|t| t.rsplit(':').next()).and_then(|c| c.parse::<i32>().ok());
@@ -1026,14 +1063,47 @@ impl HostActor {
 
     async fn keepalive(&mut self) {
         self.keepalive_at = Some(Instant::now() + Duration::from_secs(30));
-        if let Err(error) = self.command_send_raw(&RelayKeepalive::command_envelope()).await {
-            return self.finish(Some(error)).await;
+        if self.registered {
+            // A dead route only surfaces as a TCP timeout after many minutes,
+            // while the server has long dropped this registration.
+            let result = if self.command_heard.elapsed() > COMMAND_SILENCE {
+                Err(HostError::TimedOut)
+            } else {
+                self.command_send_raw(&RelayKeepalive::command_envelope()).await
+            };
+            if let Err(error) = result {
+                self.command_failed(error).await;
+            }
         }
         if self.relay.is_some() {
             if let Err(error) = self.relay_send_raw(&RelayKeepalive::relay_envelope()).await {
                 self.relay_ended(Some(error.to_string())).await;
             }
         }
+    }
+
+    /// The Windows client re-registers on a timer when the command service
+    /// drops; the relay of an active viewer is independent of it.
+    async fn command_failed(&mut self, error: HostError) {
+        if !self.running {
+            return;
+        }
+        if !self.registered && self.reconnect_attempts == 0 {
+            return self.finish(Some(error)).await;
+        }
+        log::warn!("command connection lost: {error}");
+        self.command = None;
+        self.command_id += 1;
+        self.registered = false;
+        self.registration_reply = None;
+        self.registration_deadline = None;
+        for (_, reply) in self.lookups.drain() {
+            let _ = reply.send(Err(HostError::NotConnected));
+        }
+        let delay = RECONNECT_DELAYS[(self.reconnect_attempts as usize).min(RECONNECT_DELAYS.len() - 1)];
+        self.reconnect_attempts += 1;
+        self.reconnect_at = Some(Instant::now() + Duration::from_secs(delay));
+        self.emit(HostEvent::Reconnecting).await;
     }
 
     async fn send(&mut self, payload: &[u8], route: Route) -> Result<(), HostError> {
@@ -1061,6 +1131,7 @@ impl HostActor {
         }
         self.running = false;
         self.command = None;
+        self.reconnect_at = None;
         self.relay = None;
         self.relay_id += 1;
         self.registration_deadline = None;

@@ -884,7 +884,7 @@ impl MainWindow {
         self.share_password.set_text(&if revealed { hosting.password() } else { "••••••••".into() });
         self.reveal_password.set_tooltip_text(Some(&if revealed { tr("Hide") } else { tr("Show") }));
         self.share_status.set_text(&hosting.status());
-        self.share_spinner.set_visible(phase == HostPhase::Registering || hosting.is_approving());
+        self.share_spinner.set_visible(phase == HostPhase::Registering || hosting.is_approving() || (phase == HostPhase::Ready && hosting.is_reconnecting()));
         set_error(&self.share_error, hosting.error());
         let content = adw::ButtonContent::new();
         content.set_can_shrink(true);

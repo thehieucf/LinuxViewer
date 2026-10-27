@@ -94,6 +94,8 @@ struct State {
     status: String,
     error: Option<String>,
     captcha: Option<CaptchaChallenge>,
+    /// The command connection dropped and is being re-established.
+    reconnecting: bool,
     pending_request: Option<IncomingRequest>,
     viewer: Option<IncomingRequest>,
     allows_control: bool,
@@ -163,6 +165,7 @@ impl HostingModel {
                 status: tr("Start sharing to get this computer's UltraViewer ID."),
                 error: None,
                 captcha: None,
+                reconnecting: false,
                 pending_request: None,
                 viewer: None,
                 allows_control: false,
@@ -220,6 +223,9 @@ impl HostingModel {
     pub fn allows_control(&self) -> bool {
         self.state.borrow().allows_control
     }
+    pub fn is_reconnecting(&self) -> bool {
+        self.state.borrow().reconnecting
+    }
     pub fn is_approving(&self) -> bool {
         self.state.borrow().approving
     }
@@ -267,6 +273,7 @@ impl HostingModel {
             state.phase = HostPhase::Registering;
             state.error = None;
             state.captcha = None;
+            state.reconnecting = false;
             state.status = "Getting this computer's UltraViewer ID…".into();
             state.generation
         };
@@ -311,8 +318,21 @@ impl HostingModel {
             HostEvent::Registered(id) => {
                 let mut state = self.state.borrow_mut();
                 state.identifier = Some(id);
-                state.phase = HostPhase::Ready;
-                state.status = "Waiting for another computer to connect.".into();
+                state.reconnecting = false;
+                // Registering again must not disturb an incoming session.
+                if matches!(state.phase, HostPhase::Registering | HostPhase::Ready) {
+                    state.phase = HostPhase::Ready;
+                    state.status = "Waiting for another computer to connect.".into();
+                }
+                drop(state);
+                self.notify();
+            }
+            HostEvent::Reconnecting => {
+                let mut state = self.state.borrow_mut();
+                state.reconnecting = true;
+                if state.phase == HostPhase::Ready {
+                    state.status = "Reconnecting to UltraViewer…".into();
+                }
                 drop(state);
                 self.notify();
             }

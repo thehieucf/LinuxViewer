@@ -147,6 +147,7 @@ static VIETNAMESE: &[(&str, &str)] = &[
     ("Viewing: {}", "Đang xem: {}"),
     ("Another computer", "Máy khác"),
     ("Waiting for another computer to connect.", "Đang chờ máy khác kết nối."),
+    ("Reconnecting to UltraViewer…", "Đang kết nối lại với UltraViewer…"),
     ("Incoming access is paused.", "Đã tạm dừng truy cập từ xa."),
     ("An incoming connection needs your approval.", "Một kết nối đến cần bạn chấp thuận."),
     ("Your computer is being viewed and controlled.", "Máy tính đang được xem và điều khiển."),

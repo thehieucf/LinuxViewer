@@ -13,7 +13,7 @@ use crate::clipboard;
 use crate::commands::{RemoteControlCommands, SideSwitchRequest};
 use crate::crypto::LegacyCommandCipher;
 use crate::login::HostLoginRequest;
-use crate::registration::{ClientRegistrationReply, ClientRegistrationRequest};
+use crate::registration::{CaptchaChallenge, ClientRegistrationReply, ClientRegistrationRequest};
 use crate::relay::{self, encode_forward, encode_system, HttpMethod, RelayEnvelope, RelayIPv4Address, RelayKeepalive};
 use crate::transport::{self, Connection, OpenOptions, ReaderEvent, Security, TransportError};
 use crate::{CLIENT_VERSION, COMMAND_HOST};
@@ -79,6 +79,8 @@ pub enum HostError {
     RelayUnavailable,
     #[error("The incoming UltraViewer connection timed out.")]
     TimedOut,
+    #[error("UltraViewer asks you to solve a captcha before it gives this computer an ID.")]
+    CaptchaRequired(CaptchaChallenge),
     #[error("The remote viewer requested an unsupported screen color mode. Use 16-bit color.")]
     UnsupportedDisplay,
     #[error("{0}")]
@@ -742,7 +744,10 @@ impl HostActor {
 
     async fn consume_command(&mut self, payload: &[u8]) -> Result<(), HostError> {
         let tag = system_tag(payload, b':');
-        if tag == "3" && !self.registered {
+        if tag == "60" && !self.registered {
+            let challenge = CaptchaChallenge::parse(payload)?;
+            self.finish(Some(HostError::CaptchaRequired(challenge))).await;
+        } else if tag == "3" && !self.registered {
             let reply = ClientRegistrationReply::parse(payload)?;
             self.default_relay_addresses = reply.ping_list().to_string();
             self.default_relay_hostnames = reply.ping_host_name_list().to_string();
@@ -769,6 +774,8 @@ impl HostActor {
             } else {
                 self.deferred_request = Some(request);
             }
+        } else {
+            log::debug!("ignored command {tag} (registered: {})", self.registered);
         }
         Ok(())
     }

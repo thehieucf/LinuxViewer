@@ -10,6 +10,7 @@ use std::ffi::CStr;
 use std::io::Write;
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use base64::Engine;
 use md5::{Digest, Md5};
@@ -57,6 +58,28 @@ pub struct NetworkInterface {
 
 const MAXIMUM_PROFILE_BYTES: u64 = 65_536;
 
+/// Token from UltraViewer's captcha page. Like the desktop client, it is kept
+/// for this run only and sent with every later registration.
+static CAPTCHA_TOKEN: Mutex<String> = Mutex::new(String::new());
+
+#[cfg_attr(not(feature = "captcha"), allow(dead_code))]
+pub fn set_captcha_token(token: String) {
+    *CAPTCHA_TOKEN.lock().unwrap_or_else(|e| e.into_inner()) = token;
+}
+
+fn captcha_token() -> String {
+    CAPTCHA_TOKEN.lock().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+/// What to tell the person when registration waits for the captcha.
+pub fn captcha_message(solve: &str) -> String {
+    if cfg!(feature = "captcha") {
+        crate::i18n::tr(solve)
+    } else {
+        crate::i18n::tr("UltraViewer asks for a captcha, which this build cannot show. Install the .deb, .rpm or Arch package to verify this computer once.")
+    }
+}
+
 fn profile_directory() -> PathBuf {
     crate::settings::data_directory()
 }
@@ -64,7 +87,9 @@ fn profile_directory() -> PathBuf {
 /// Loads (or creates) the profile and refreshes its network/platform values.
 pub fn load_or_create() -> Result<ClientRegistrationRequest, ProfileError> {
     let network = discover_network()?;
-    load_or_create_in(&profile_directory(), network, &host_name(), &user_name(), &kernel_release())
+    let mut request = load_or_create_in(&profile_directory(), network, &host_name(), &user_name(), &kernel_release())?;
+    request.captcha_token = captcha_token();
+    Ok(request)
 }
 
 /// Replaces the random password while keeping the installation identity.
@@ -72,7 +97,9 @@ pub fn reset_password() -> Result<ClientRegistrationRequest, ProfileError> {
     let directory = profile_directory();
     let mut request = load_or_create()?;
     request.password = random_password();
+    let token = std::mem::take(&mut request.captcha_token);
     write_profile(&directory.join("registration.json"), &request)?;
+    request.captcha_token = token;
     Ok(request)
 }
 

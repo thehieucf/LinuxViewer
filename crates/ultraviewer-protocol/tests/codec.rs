@@ -11,7 +11,7 @@ use ultraviewer_protocol::input::{HostInputMessage, KeyboardKind, KeyboardMessag
 use ultraviewer_protocol::login::{HostLoginRequest, LoginContext, LoginCredential, PartnerLoginMessage};
 use ultraviewer_protocol::lookup::{DirectDetails, LookupCredential, LookupReply, LookupRequest};
 use ultraviewer_protocol::multipart::{self, Limits, MultipartError};
-use ultraviewer_protocol::registration::{ClientRegistrationReply, ClientRegistrationRequest, RegistrationError};
+use ultraviewer_protocol::registration::{CaptchaChallenge, ClientRegistrationReply, ClientRegistrationRequest, RegistrationError};
 use ultraviewer_protocol::relay::{self, DirectPeerEnvelope, HttpMethod, HttpPreambleDecoder, RelayEnvelope, RelayIPv4Address, RelayKeepalive};
 use ultraviewer_protocol::screen::{ModernScreenFrameMessage, ModernScreenInitialization, ModernScreenLimits, ModernScreenRenderer, ScreenError, ScreenRegion};
 use ultraviewer_protocol::zstd::{self as uvzstd, ZstdDecodeError, ZstdScreenDecoder};
@@ -290,6 +290,26 @@ fn registration_reply_parse() {
         assert!(ClientRegistrationReply::parse(fields.join(":").as_bytes()).is_err(), "{index} {value}");
     }
     assert_eq!(ClientRegistrationReply::parse(b"3:443:123:192.0.2.1"), Err(RegistrationError::MissingFields));
+}
+
+#[test]
+fn registration_captcha_challenge() {
+    // Observed reply shape: the server session ends with "=" and an empty extra field.
+    let challenge = CaptchaChallenge::parse(b"60:FhLx/ve3+W4M=:").unwrap();
+    assert_eq!(challenge.session, "FhLx/ve3+W4M=");
+    assert_eq!(challenge.extra, "");
+    assert_eq!(
+        challenge.url("vi"),
+        "https://www.ultraviewer.net/api/enter_captcha.aspx?lang=vi&version=6.6.133&extra=&esc=FhLx%2Fve3%2BW4M%3D"
+    );
+    assert_eq!(CaptchaChallenge::parse(b"60:abc").unwrap().extra, "");
+    assert_eq!(CaptchaChallenge::parse(b"60:abc:x y").unwrap().url("en").split("&extra=").nth(1), Some("x%20y&esc=abc"));
+    assert_eq!(CaptchaChallenge::parse(b"3:abc:"), Err(RegistrationError::InvalidCommand));
+    assert_eq!(CaptchaChallenge::parse(b"60::"), Err(RegistrationError::InvalidField(1)));
+    assert_eq!(CaptchaChallenge::parse(b"60:a\x01b:"), Err(RegistrationError::InvalidField(1)));
+    assert!(CaptchaChallenge::valid_token("A1b2-C3"));
+    assert!(!CaptchaChallenge::valid_token(""));
+    assert!(!CaptchaChallenge::valid_token("a:b"));
 }
 
 fn lookup() -> LookupRequest {

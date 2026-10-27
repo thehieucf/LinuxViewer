@@ -10,6 +10,7 @@ use std::time::Duration;
 use gtk::prelude::*;
 use gtk::{gdk, glib};
 use ultraviewer_protocol::host::{self, HostConfiguration, HostError, HostEvent, HostHandle, HostedScreenFrame, IncomingRequest, SideSwitchApproval};
+use ultraviewer_protocol::CaptchaChallenge;
 
 use super::capture::{self, x11::X11Capture, PortalSession, RawFrame};
 use super::inject::{InjectBackend, InputController, PortalBackend, UinputBackend, XTestBackend};
@@ -92,6 +93,7 @@ struct State {
     password: String,
     status: String,
     error: Option<String>,
+    captcha: Option<CaptchaChallenge>,
     pending_request: Option<IncomingRequest>,
     viewer: Option<IncomingRequest>,
     allows_control: bool,
@@ -160,6 +162,7 @@ impl HostingModel {
                 password: String::new(),
                 status: tr("Start sharing to get this computer's UltraViewer ID."),
                 error: None,
+                captcha: None,
                 pending_request: None,
                 viewer: None,
                 allows_control: false,
@@ -226,6 +229,26 @@ impl HostingModel {
     pub fn pending_side_switch(&self) -> Option<SideSwitchApproval> {
         self.state.borrow().pending_side_switch.clone()
     }
+    /// Registration stopped until the person solves UltraViewer's captcha.
+    #[cfg_attr(not(feature = "captcha"), allow(dead_code))]
+    pub fn captcha(&self) -> Option<CaptchaChallenge> {
+        self.state.borrow().captcha.clone()
+    }
+
+    #[cfg_attr(not(feature = "captcha"), allow(dead_code))]
+    pub fn solve_captcha(self: &Rc<Self>, token: String) {
+        crate::profile::set_captcha_token(token);
+        self.state.borrow_mut().captcha = None;
+        self.start();
+    }
+
+    /// The captcha window was closed; "Try sharing again" asks for a new one.
+    #[cfg_attr(not(feature = "captcha"), allow(dead_code))]
+    pub fn dismiss_captcha(&self) {
+        if self.state.borrow_mut().captcha.take().is_some() {
+            self.notify();
+        }
+    }
 
     /// The sharing registration, for outgoing sessions to reuse.
     pub fn command_port(&self) -> Option<ultraviewer_protocol::host::CommandPort> {
@@ -243,6 +266,7 @@ impl HostingModel {
             state.generation += 1;
             state.phase = HostPhase::Registering;
             state.error = None;
+            state.captcha = None;
             state.status = "Getting this computer's UltraViewer ID…".into();
             state.generation
         };
@@ -375,6 +399,10 @@ impl HostingModel {
                 self.notify();
             }
             HostEvent::Stopped(error) => match error {
+                Some(HostError::CaptchaRequired(challenge)) => {
+                    self.state.borrow_mut().captcha = Some(challenge);
+                    self.failed(crate::profile::captcha_message("Solve UltraViewer's captcha to get this computer's ID."), generation);
+                }
                 Some(error) => self.failed(host_error_text(&error), generation),
                 None => self.stop(),
             },

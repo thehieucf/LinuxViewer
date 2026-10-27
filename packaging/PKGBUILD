@@ -1,12 +1,12 @@
 # Arch Linux package built from this source tree:  cd packaging && makepkg -si
 pkgname=linuxviewer
-pkgver=0.1.1
+pkgver=0.1.2
 pkgrel=1
 pkgdesc="UltraViewer-compatible remote desktop client for Linux"
 url='https://github.com/thehieucf/LinuxViewer'
 arch=('x86_64' 'aarch64')
 license=('MIT')
-depends=('gtk4' 'libadwaita' 'openssl' 'libjpeg-turbo' 'libpulse' 'libpipewire' 'xdg-desktop-portal')
+depends=('gtk4' 'libadwaita' 'webkitgtk-6.0' 'openssl' 'libjpeg-turbo' 'libpulse' 'libpipewire' 'xdg-desktop-portal')
 makedepends=('cargo' 'clang' 'pkgconf')
 optdepends=('ffmpeg: screen recording'
             'gnome-keyring: remember partner passwords (or any Secret Service provider)'

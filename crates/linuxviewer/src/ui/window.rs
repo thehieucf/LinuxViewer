@@ -7,6 +7,8 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 
+#[cfg(feature = "captcha")]
+use super::captcha;
 use super::chat::{clipboard_button, ChatPanel};
 use super::session::SessionPage;
 use crate::host::model::{input_support, HostPhase, HostingModel};
@@ -57,6 +59,8 @@ pub struct MainWindow {
     /// The incoming request already answered, so its dialog is not reopened.
     answered_request: Cell<Option<u64>>,
     side_switch_dialog: RefCell<Option<adw::AlertDialog>>,
+    #[cfg(feature = "captcha")]
+    captcha_window: RefCell<Option<adw::Window>>,
     host_chat_split: adw::OverlaySplitView,
     host_chat_panel: Rc<ChatPanel>,
 }
@@ -432,6 +436,8 @@ impl MainWindow {
             host_allow: RefCell::new(None),
             answered_request: Cell::new(None),
             side_switch_dialog: RefCell::new(None),
+            #[cfg(feature = "captcha")]
+            captcha_window: RefCell::new(None),
             host_chat_split,
             host_chat_panel,
         });
@@ -729,6 +735,7 @@ impl MainWindow {
     }
 
     fn refresh_viewer(self: &Rc<Self>) {
+        self.refresh_captcha();
         self.updating.set(true);
         let phase = self.viewer.phase();
         let active = self.viewer.is_session_active();
@@ -818,7 +825,54 @@ impl MainWindow {
         }
     }
 
+    #[cfg(not(feature = "captcha"))]
+    fn refresh_captcha(self: &Rc<Self>) {}
+
+    /// Sharing and connecting wait on the same registration, so one captcha
+    /// window serves both.
+    #[cfg(feature = "captcha")]
+    fn refresh_captcha(self: &Rc<Self>) {
+        if self.captcha_window.borrow().is_some() {
+            return;
+        }
+        let Some(challenge) = self.hosting.captcha().or_else(|| self.viewer.captcha()) else { return };
+        let weak = Rc::downgrade(self);
+        let window = captcha::present(&self.window, &challenge, move |token| {
+            let Some(this) = weak.upgrade() else { return };
+            // Sharing registers first so a retried connection reuses its
+            // registration instead of sending the token a second time.
+            let sharing = this.hosting.captcha().is_some();
+            if sharing {
+                this.hosting.solve_captcha(token.clone());
+            }
+            if !this.viewer.solve_captcha(token) {
+                return;
+            }
+            glib::spawn_future_local(async move {
+                for _ in 0..60 {
+                    if !sharing || this.hosting.identifier().is_some() || !this.hosting.is_running() {
+                        break;
+                    }
+                    glib::timeout_future(std::time::Duration::from_millis(250)).await;
+                }
+                let size = this.local_screen_size();
+                this.viewer.connect(size);
+            });
+        });
+        let weak = Rc::downgrade(self);
+        window.connect_close_request(move |_| {
+            if let Some(this) = weak.upgrade() {
+                this.captcha_window.borrow_mut().take();
+                this.hosting.dismiss_captcha();
+                this.viewer.dismiss_captcha();
+            }
+            glib::Propagation::Proceed
+        });
+        *self.captcha_window.borrow_mut() = Some(window);
+    }
+
     fn refresh_hosting(self: &Rc<Self>) {
+        self.refresh_captcha();
         let hosting = &self.hosting;
         let phase = hosting.phase();
         let running = hosting.is_running();

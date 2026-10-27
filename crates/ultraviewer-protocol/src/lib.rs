@@ -34,7 +34,7 @@ pub use audio::{ComputerAudioMessage, G722Decoder};
 pub use commands::{RemoteControlCommands, RemoteMonitor, SideSwitchRequest};
 pub use cursor::{CursorFile, CursorMessage};
 pub use input::{KeyboardKind, KeyboardMessage, MouseButton, MouseMessage};
-pub use registration::{ClientRegistrationReply, ClientRegistrationRequest};
+pub use registration::{CaptchaChallenge, ClientRegistrationReply, ClientRegistrationRequest};
 pub use relay::RelayIPv4Address;
 pub use screen::{ModernScreenBitmap, ModernScreenRenderer, ScreenRegion};
 

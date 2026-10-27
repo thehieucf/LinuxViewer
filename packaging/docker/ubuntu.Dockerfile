@@ -5,7 +5,7 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential ca-certificates clang curl dpkg-dev file git libclang-dev pkg-config \
-        libgtk-4-dev libadwaita-1-dev libssl-dev libturbojpeg0-dev libpulse-dev libpipewire-0.3-dev \
+        libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev libssl-dev libturbojpeg0-dev libpulse-dev libpipewire-0.3-dev \
         librsvg2-common gdk-pixbuf2.0-bin desktop-file-utils patchelf squashfs-tools zsync \
     && rm -rf /var/lib/apt/lists/*
 

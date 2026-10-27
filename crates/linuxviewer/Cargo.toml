@@ -7,11 +7,13 @@ license.workspace = true
 repository.workspace = true
 
 [features]
-default = ["gtk_4_16"]
+default = ["gtk_4_16", "captcha"]
 # Uploads only the changed part of each remote frame and uses newer libadwaita
 # layout hints. Build with --no-default-features for GTK 4.14 / libadwaita 1.5
 # (Ubuntu 24.04, Debian 13 packages).
 gtk_4_16 = ["gtk/v4_16", "adw/v1_6"]
+# Shows UltraViewer's captcha page (server command 60) in WebKitGTK 6.0.
+captcha = ["dep:webkit6"]
 
 [dependencies]
 ultraviewer-protocol = { path = "../ultraviewer-protocol" }
@@ -31,3 +33,4 @@ ashpd = { version = "0.13", default-features = false, features = ["tokio", "scre
 pipewire = "0.9"
 enumflags2 = "0.7"
 x11rb = { version = "0.13", features = ["xtest", "randr"] }
+webkit6 = { version = "0.6", optional = true }

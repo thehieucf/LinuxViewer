@@ -25,7 +25,7 @@ use crate::direct::{CandidateId, DirectEvent, DirectTransport, LanDirectUpgradeS
 use crate::lookup::{DirectDetails, LookupCredential, LookupReply, LookupRequest, PeerInfo};
 use crate::login::{LoginContext, LoginCredential, PartnerLoginMessage};
 use crate::multipart;
-use crate::registration::{ClientRegistrationReply, ClientRegistrationRequest};
+use crate::registration::{CaptchaChallenge, ClientRegistrationReply, ClientRegistrationRequest};
 use crate::relay::{self, encode_forward, encode_system, HttpMethod, RelayEnvelope, RelayIPv4Address, RelayKeepalive};
 use crate::screen::{ModernScreenBitmap, ModernScreenFrameMessage, ModernScreenInitialization, ModernScreenLimits, ModernScreenRenderer, ScreenDump};
 use crate::transport::{self, Connection, OpenOptions, ReaderEvent, Security, TransportError};
@@ -133,6 +133,8 @@ pub enum SessionError {
     Protocol(String),
     #[error("This computer's client profile is invalid: {0}")]
     Registration(String),
+    #[error("UltraViewer asks you to solve a captcha before it gives this computer an ID.")]
+    CaptchaRequired(CaptchaChallenge),
 }
 
 impl From<TransportError> for SessionError {
@@ -735,7 +737,9 @@ impl Actor {
 
     async fn consume_command(&mut self, bytes: &[u8]) -> Result<(), SessionError> {
         let RelayEnvelope::System { payload } = RelayEnvelope::decode(bytes)? else { return Ok(()) };
-        if self.phase == Phase::Registering && payload.starts_with(b"3:") {
+        if self.phase == Phase::Registering && payload.starts_with(b"60:") {
+            return Err(SessionError::CaptchaRequired(CaptchaChallenge::parse(&payload)?));
+        } else if self.phase == Phase::Registering && payload.starts_with(b"3:") {
             let reply = ClientRegistrationReply::parse(&payload)?;
             self.command_keepalive_at = Some(Instant::now() + COMMAND_KEEPALIVE);
             self.registered(reply).await?;

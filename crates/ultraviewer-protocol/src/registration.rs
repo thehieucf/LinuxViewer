@@ -223,6 +223,62 @@ impl ClientRegistrationReply {
     }
 }
 
+/// Server command 60, sent instead of the command-3 reply when the service
+/// wants a person to solve a captcha before it assigns an ID. Recovered from
+/// the desktop dispatcher at 0x676947: `60:<esc>:<extra>` opens the captcha
+/// page in an embedded browser, whose `window.external.FromJS_CaptchaCorrect`
+/// callback (RemoteControl VChatBrowser) supplies the token that the next
+/// registration carries in its last field (desktop global 0x7e21dc).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaptchaChallenge {
+    /// Opaque server session (base64), passed back as `esc`.
+    pub session: String,
+    /// Optional opaque value, passed back as `extra`.
+    pub extra: String,
+}
+
+impl CaptchaChallenge {
+    pub const PAGE: &'static str = "https://www.ultraviewer.net/api/enter_captcha.aspx";
+
+    pub fn parse(plaintext: &[u8]) -> Result<Self, RegistrationError> {
+        if plaintext.len() > 4096 {
+            return Err(RegistrationError::PayloadTooLarge);
+        }
+        let text = std::str::from_utf8(plaintext).map_err(|_| RegistrationError::UnsupportedEncoding)?;
+        let mut fields = text.split(':');
+        if fields.next() != Some("60") {
+            return Err(RegistrationError::InvalidCommand);
+        }
+        let session = fields.next().unwrap_or_default();
+        if session.is_empty() || !crate::util::is_colon_field(session) {
+            return Err(RegistrationError::InvalidField(1));
+        }
+        let extra = fields.next().unwrap_or_default();
+        if !crate::util::is_colon_field(extra) {
+            return Err(RegistrationError::InvalidField(2));
+        }
+        Ok(Self { session: session.into(), extra: extra.into() })
+    }
+
+    /// Page address for `language` (the desktop sends its UI language, e.g. "vi" or "en").
+    pub fn url(&self, language: &str) -> String {
+        use crate::util::percent_encode;
+        format!(
+            "{}?lang={}&version={}&extra={}&esc={}",
+            Self::PAGE,
+            percent_encode(language),
+            percent_encode(crate::CLIENT_VERSION),
+            percent_encode(&self.extra),
+            percent_encode(&self.session)
+        )
+    }
+
+    /// The page's token must fit a registration field.
+    pub fn valid_token(token: &str) -> bool {
+        !token.is_empty() && token.len() <= 4096 && crate::util::is_colon_field(token)
+    }
+}
+
 fn validate_field(value: &str, index: usize) -> Result<(), RegistrationError> {
     if !crate::util::is_ascii(value) {
         return Err(RegistrationError::UnsupportedEncoding);

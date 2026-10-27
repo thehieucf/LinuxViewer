@@ -34,6 +34,19 @@ pub(crate) fn is_colon_field(value: &str) -> bool {
     value.bytes().all(|b| (32..=126).contains(&b) && b != b':')
 }
 
+/// RFC 3986 query-component encoding: unreserved bytes pass through.
+pub(crate) fn percent_encode(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            out.push(char::from(byte));
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
+}
+
 pub(crate) fn is_digits(value: &str) -> bool {
     !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit())
 }

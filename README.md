@@ -31,19 +31,19 @@ Bản cài sẵn ở trang [Releases](https://github.com/thehieucf/LinuxViewer/r
 
 ## Yêu cầu (build từ mã nguồn)
 
-Rust ≥ 1.80, GTK ≥ 4.16, libadwaita ≥ 1.6 (hoặc GTK 4.14 / libadwaita 1.5 với `--no-default-features`), OpenSSL, libjpeg-turbo (turbojpeg), libpulse,
+Rust ≥ 1.80, GTK ≥ 4.16, libadwaita ≥ 1.6 (hoặc GTK 4.14 / libadwaita 1.5 với `--no-default-features`), WebKitGTK 6.0, OpenSSL, libjpeg-turbo (turbojpeg), libpulse,
 PipeWire, xdg-desktop-portal (+ backend của desktop), clang (bindgen cho PipeWire).
 Tùy chọn: `ffmpeg` (quay video), một Secret Service như gnome-keyring/KWallet (lưu mật khẩu).
 
-Arch: `sudo pacman -S gtk4 libadwaita openssl libjpeg-turbo libpulse pipewire xdg-desktop-portal clang`
-Debian/Ubuntu: `sudo apt install libgtk-4-dev libadwaita-1-dev libssl-dev libturbojpeg0-dev libpulse-dev libpipewire-0.3-dev clang pkg-config`
-Fedora: `sudo dnf install gtk4-devel libadwaita-devel openssl-devel turbojpeg-devel pulseaudio-libs-devel pipewire-devel clang`
+Arch: `sudo pacman -S gtk4 libadwaita webkitgtk-6.0 openssl libjpeg-turbo libpulse pipewire xdg-desktop-portal clang`
+Debian/Ubuntu: `sudo apt install libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev libssl-dev libturbojpeg0-dev libpulse-dev libpipewire-0.3-dev clang pkg-config`
+Fedora: `sudo dnf install gtk4-devel libadwaita-devel webkitgtk6.0-devel openssl-devel turbojpeg-devel pulseaudio-libs-devel pipewire-devel clang`
 
 ## Build & chạy
 
 ```sh
 git clone https://github.com/thehieucf/LinuxViewer.git && cd LinuxViewer
-cargo test --workspace            # 52 test
+cargo test --workspace            # 53 test
 cargo build --release
 ./target/release/linuxviewer
 ```
@@ -97,6 +97,9 @@ dễ bị sai dấu.
 - Atlas JPEG nhiều cột của UltraViewer 6.6 (màn hình lớn, ví dụ 2240×1400) bị Windows làm tròn chiều cao xuống,
   mất 1–2 ô cuối; LinuxViewer bỏ qua các ô đó thay vì từ chối cả khung hình (bản Mac báo "invalid image tile").
 - Không có kiểm tra cập nhật tự động (cập nhật qua trình quản lý gói hoặc build lại).
+- Hỗ trợ captcha của UltraViewer (lệnh server 60, bản Mac chưa có): khi máy mới đăng ký lần đầu, server có thể
+  yêu cầu giải captcha trước khi cấp ID. LinuxViewer mở trang xác minh của UltraViewer trong cửa sổ WebKitGTK,
+  nhận token qua `window.external.FromJS_CaptchaCorrect` như bản Windows rồi đăng ký lại.
 
 ## Gỡ lỗi
 

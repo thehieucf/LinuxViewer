@@ -11,7 +11,7 @@ stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 
 # GTK 4.14 / libadwaita 1.5 API so the package installs on Ubuntu 24.04.
-cargo build --release --locked -p linuxviewer --no-default-features
+cargo build --release --locked -p linuxviewer --no-default-features --features captcha
 BINARY="$target/release/linuxviewer" PREFIX=/usr DESTDIR="$stage" \
     UDEV_RULES_DIR=/usr/lib/udev/rules.d ./install.sh --system >/dev/null
 mkdir -p "$stage/usr/share/doc/linuxviewer"

@@ -12,6 +12,8 @@ trap 'rm -rf "$work"' EXIT
 appdir="$work/AppDir"
 id=io.github.linuxviewer
 
+# Without the captcha feature: WebKitGTK starts helper processes from paths
+# fixed at its build, which an AppImage cannot relocate.
 cargo build --release --locked -p linuxviewer --no-default-features
 BINARY="$target/release/linuxviewer" PREFIX=/usr DESTDIR="$appdir" ./install.sh >/dev/null
 

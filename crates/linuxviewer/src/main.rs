@@ -9,6 +9,7 @@ mod runtime;
 mod settings;
 mod tools;
 mod ui;
+mod update;
 mod viewer;
 
 use std::cell::{Cell, RefCell};
@@ -144,6 +145,14 @@ fn main() -> glib::ExitCode {
             }
         });
         app.add_action(&about);
+        // Target of the update notification.
+        let open_update = gio::SimpleAction::new("open-update", Some(glib::VariantTy::STRING));
+        open_update.connect_activate(|_, url| {
+            let url = url.and_then(|u| u.get::<String>()).unwrap_or_else(|| update::RELEASES_PAGE.into());
+            let main = MAIN.with(|m| m.borrow().clone());
+            ui::window::open_uri(main.as_ref().map(|m| &m.window), &url);
+        });
+        app.add_action(&open_update);
         let quit = gio::SimpleAction::new("quit", None);
         let a = app.clone();
         quit.connect_activate(move |_, _| quit_gracefully(&a));
@@ -161,6 +170,7 @@ fn main() -> glib::ExitCode {
             glib::Propagation::Stop
         });
         main.window.present();
+        update::watch(&main);
         MAIN.with(|m| *m.borrow_mut() = Some(main));
     });
     app.run()

@@ -22,6 +22,8 @@ pub struct MainWindow {
     hosting: Rc<HostingModel>,
     stack: gtk::Stack,
     toasts: adw::ToastOverlay,
+    update_banner: adw::Banner,
+    update_url: RefCell<String>,
     session: RefCell<Option<Rc<SessionPage>>>,
     // Connect card
     id_entry: gtk::Entry,
@@ -379,8 +381,11 @@ impl MainWindow {
         host_chat_split.set_sidebar(Some(&host_chat_panel.root));
         host_chat_split.set_show_sidebar(false);
 
+        let update_banner = adw::Banner::new("");
+        update_banner.set_button_label(Some(&tr("Download")));
         let home = adw::ToolbarView::new();
         home.add_top_bar(&header);
+        home.add_top_bar(&update_banner);
         home.set_content(Some(&host_chat_split));
 
         let stack = gtk::Stack::new();
@@ -404,6 +409,8 @@ impl MainWindow {
             hosting,
             stack,
             toasts,
+            update_banner,
+            update_url: RefCell::new(crate::update::RELEASES_PAGE.into()),
             session: RefCell::new(None),
             id_entry,
             id_display,
@@ -440,6 +447,13 @@ impl MainWindow {
             captcha_window: RefCell::new(None),
             host_chat_split,
             host_chat_panel,
+        });
+        let weak = Rc::downgrade(&this);
+        this.update_banner.connect_button_clicked(move |_| {
+            if let Some(this) = weak.upgrade() {
+                let url = this.update_url.borrow().clone();
+                open_uri(Some(&this.window), &url);
+            }
         });
         this.build_session_page();
         this.wire(&copy_id, &copy_password, &new_password, &clear_history);
@@ -1031,6 +1045,32 @@ impl MainWindow {
     pub fn models(&self) -> (Rc<ViewerModel>, Rc<HostingModel>) {
         (self.viewer.clone(), self.hosting.clone())
     }
+
+    /// Reveals the banner above the home page that links to `release`.
+    pub fn show_update(&self, release: &crate::update::Release) {
+        *self.update_url.borrow_mut() = release.url.clone();
+        self.update_banner.set_title(&trf("LinuxViewer {} is available.", &[&release.version]));
+        self.update_banner.set_revealed(true);
+    }
+
+    /// A desktop notification that opens the release page when clicked.
+    pub fn notify_update(&self, release: &crate::update::Release) {
+        let Some(app) = self.window.application() else { return };
+        let notification = gio::Notification::new(&trf("LinuxViewer {} is available", &[&release.version]));
+        notification.set_body(Some(&tr("Open the release page to download the new version.")));
+        notification.set_icon(&gio::ThemedIcon::new(crate::APP_ID));
+        notification.set_default_action_and_target_value("app.open-update", Some(&release.url.to_variant()));
+        app.send_notification(Some("update"), &notification);
+    }
+}
+
+/// Opens `uri` with the desktop's default handler.
+pub fn open_uri(parent: Option<&adw::ApplicationWindow>, uri: &str) {
+    gtk::UriLauncher::new(uri).launch(parent, gio::Cancellable::NONE, |result| {
+        if let Err(error) = result {
+            log::warn!("could not open the release page: {error}");
+        }
+    });
 }
 
 pub fn present_about(parent: &impl IsA<gtk::Widget>) {
@@ -1058,6 +1098,8 @@ pub fn present_preferences(parent: &Rc<MainWindow>) {
     let settings_now = settings::get();
     let dialog = adw::PreferencesDialog::new();
     dialog.set_search_enabled(false);
+    // libadwaita's own "Preferences" follows the system locale, not the app's.
+    dialog.set_title(&tr("Settings"));
     let page = adw::PreferencesPage::new();
     page.set_title(&tr("General"));
     page.set_icon_name(Some("preferences-system-symbolic"));
@@ -1215,6 +1257,24 @@ pub fn present_preferences(parent: &Rc<MainWindow>) {
     });
     connection.add(&folder);
     page.add(&connection);
+
+    let updates = adw::PreferencesGroup::new();
+    updates.set_title(&tr("Updates"));
+    let check = adw::SwitchRow::builder()
+        .title(tr("Notify about new versions"))
+        .subtitle(tr("Asks GitHub at startup and every 12 hours whether a newer LinuxViewer release exists."))
+        .active(settings_now.check_for_updates)
+        .build();
+    let weak = Rc::downgrade(parent);
+    check.connect_active_notify(move |row| {
+        let active = row.is_active();
+        settings::update(|s| s.check_for_updates = active);
+        if let (true, Some(main)) = (active, weak.upgrade()) {
+            glib::spawn_future_local(async move { crate::update::check(&main).await });
+        }
+    });
+    updates.add(&check);
+    page.add(&updates);
 
     dialog.add(&page);
     dialog.present(Some(&parent.window));

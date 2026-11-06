@@ -26,6 +26,10 @@ pub struct Settings {
     pub capture_folder: Option<String>,
     /// Lets the screen-cast portal reuse the last approved screen.
     pub portal_restore_token: Option<String>,
+    /// Ask GitHub whether a newer LinuxViewer release exists.
+    pub check_for_updates: bool,
+    /// Newest release already announced by a desktop notification.
+    pub notified_update: Option<String>,
 }
 
 impl Default for Settings {
@@ -44,6 +48,8 @@ impl Default for Settings {
             chat_sidebar: false,
             capture_folder: None,
             portal_restore_token: None,
+            check_for_updates: true,
+            notified_update: None,
         }
     }
 }

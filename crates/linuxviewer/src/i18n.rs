@@ -384,4 +384,12 @@ static VIETNAMESE: &[(&str, &str)] = &[
     ("An independent Linux client for UltraViewer interoperability, ported from MacViewer by thehieucf.", "Ứng dụng Linux độc lập, tương thích với UltraViewer, được thehieucf port từ MacViewer."),
     ("Ported from", "Port từ"),
     ("LinuxViewer is an independent implementation and not an official UltraViewer product. Only connect to computers you are authorized to access.", "LinuxViewer là bản triển khai độc lập, không phải sản phẩm chính thức của UltraViewer. Chỉ kết nối tới những máy tính bạn được phép truy cập."),
+    // Updates
+    ("Download", "Tải về"),
+    ("LinuxViewer {} is available.", "Đã có LinuxViewer {}."),
+    ("LinuxViewer {} is available", "Đã có LinuxViewer {}"),
+    ("Open the release page to download the new version.", "Mở trang phát hành để tải phiên bản mới."),
+    ("Updates", "Cập nhật"),
+    ("Notify about new versions", "Thông báo khi có phiên bản mới"),
+    ("Asks GitHub at startup and every 12 hours whether a newer LinuxViewer release exists.", "Hỏi GitHub khi mở ứng dụng và mỗi 12 giờ xem đã có bản LinuxViewer mới chưa."),
 ];

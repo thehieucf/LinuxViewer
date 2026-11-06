@@ -235,7 +235,8 @@ impl HostingModel {
     pub fn pending_side_switch(&self) -> Option<SideSwitchApproval> {
         self.state.borrow().pending_side_switch.clone()
     }
-    /// Registration stopped until the person solves UltraViewer's captcha.
+    /// Registration waits, on its open connection, for the person to solve
+    /// UltraViewer's captcha.
     #[cfg_attr(not(feature = "captcha"), allow(dead_code))]
     pub fn captcha(&self) -> Option<CaptchaChallenge> {
         self.state.borrow().captcha.clone()
@@ -243,17 +244,33 @@ impl HostingModel {
 
     #[cfg_attr(not(feature = "captcha"), allow(dead_code))]
     pub fn solve_captcha(self: &Rc<Self>, token: String) {
-        crate::profile::set_captcha_token(token);
-        self.state.borrow_mut().captcha = None;
-        self.start();
+        crate::profile::set_captcha_token(token.clone());
+        let handle = {
+            let mut state = self.state.borrow_mut();
+            if state.captcha.take().is_none() {
+                return;
+            }
+            state.status = "Getting this computer's UltraViewer ID…".into();
+            state.handle.clone()
+        };
+        match handle {
+            Some(handle) => handle.solve_captcha(token),
+            None => self.start(),
+        }
+        self.notify();
     }
 
     /// The captcha window was closed; "Try sharing again" asks for a new one.
     #[cfg_attr(not(feature = "captcha"), allow(dead_code))]
-    pub fn dismiss_captcha(&self) {
-        if self.state.borrow_mut().captcha.take().is_some() {
-            self.notify();
-        }
+    pub fn dismiss_captcha(self: &Rc<Self>) {
+        let generation = {
+            let mut state = self.state.borrow_mut();
+            if state.captcha.take().is_none() {
+                return;
+            }
+            state.generation
+        };
+        self.failed(tr("Solve UltraViewer's captcha to get this computer's ID."), generation);
     }
 
     /// The sharing registration, for outgoing sessions to reuse.
@@ -318,6 +335,7 @@ impl HostingModel {
             HostEvent::Registered(id) => {
                 let mut state = self.state.borrow_mut();
                 state.identifier = Some(id);
+                state.captcha = None;
                 state.reconnecting = false;
                 // Registering again must not disturb an incoming session.
                 if matches!(state.phase, HostPhase::Registering | HostPhase::Ready) {
@@ -325,6 +343,17 @@ impl HostingModel {
                     state.status = "Waiting for another computer to connect.".into();
                 }
                 drop(state);
+                self.notify();
+            }
+            HostEvent::CaptchaRequired(challenge) => {
+                if !cfg!(feature = "captcha") {
+                    return self.failed(crate::profile::captcha_message("Solve UltraViewer's captcha to get this computer's ID."), generation);
+                }
+                {
+                    let mut state = self.state.borrow_mut();
+                    state.captcha = Some(challenge);
+                    state.status = "Solve UltraViewer's captcha to get this computer's ID.".into();
+                }
                 self.notify();
             }
             HostEvent::Reconnecting => {
@@ -419,10 +448,6 @@ impl HostingModel {
                 self.notify();
             }
             HostEvent::Stopped(error) => match error {
-                Some(HostError::CaptchaRequired(challenge)) => {
-                    self.state.borrow_mut().captcha = Some(challenge);
-                    self.failed(crate::profile::captcha_message("Solve UltraViewer's captcha to get this computer's ID."), generation);
-                }
                 Some(error) => self.failed(host_error_text(&error), generation),
                 None => self.stop(),
             },
@@ -439,6 +464,7 @@ impl HostingModel {
             state.generation += 1;
             state.phase = HostPhase::Failed;
             state.identifier = None;
+            state.captcha = None;
             state.pending_request = None;
             state.viewer = None;
             state.allows_control = false;
@@ -463,6 +489,7 @@ impl HostingModel {
             state.generation += 1;
             state.phase = HostPhase::Off;
             state.identifier = None;
+            state.captcha = None;
             state.password.clear();
             state.pending_request = None;
             state.viewer = None;

@@ -99,7 +99,11 @@ dễ bị sai dấu.
 - Không có kiểm tra cập nhật tự động (cập nhật qua trình quản lý gói hoặc build lại).
 - Hỗ trợ captcha của UltraViewer (lệnh server 60, bản Mac chưa có): khi máy mới đăng ký lần đầu, server có thể
   yêu cầu giải captcha trước khi cấp ID. LinuxViewer mở trang xác minh của UltraViewer trong cửa sổ WebKitGTK,
-  nhận token qua `window.external.FromJS_CaptchaCorrect` như bản Windows rồi đăng ký lại.
+  nhận token qua `window.external.FromJS_CaptchaCorrect` như bản Windows rồi đăng ký lại trên chính kết nối đã
+  nhận captcha. Trang này kiểm tra trình duyệt: nó tính một trường ẩn theo việc có `String.prototype.includes`
+  hay không, và server chờ giá trị của trình duyệt IE nhúng trong bản Windows (không có `includes`). Nếu giá trị
+  không khớp, mã đúng vẫn bị báo sai, nên LinuxViewer bỏ `includes` trong trang captcha. Khi khớp, server thường
+  chấp nhận ngay mà không cần gõ mã.
 
 ## Gỡ lỗi
 

@@ -350,7 +350,6 @@ static VIETNAMESE: &[(&str, &str)] = &[
     ("The incoming connection is no longer available.", "Kết nối đến không còn khả dụng."),
     ("The UltraViewer incoming relay is unavailable. Try again.", "Máy chủ chuyển tiếp UltraViewer cho kết nối đến hiện không khả dụng. Hãy thử lại."),
     ("The incoming UltraViewer connection timed out.", "Kết nối UltraViewer đến đã hết thời gian chờ."),
-    ("UltraViewer asks you to solve a captcha before it gives this computer an ID.", "UltraViewer yêu cầu giải captcha trước khi cấp ID cho máy tính này."),
     ("Solve UltraViewer's captcha to get this computer's ID.", "Hãy giải captcha của UltraViewer để nhận ID cho máy tính này."),
     ("Solve UltraViewer's captcha to continue connecting.", "Hãy giải captcha của UltraViewer để tiếp tục kết nối."),
     ("Verify this computer", "Xác minh máy tính này"),

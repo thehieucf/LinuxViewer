@@ -828,43 +828,41 @@ impl MainWindow {
     #[cfg(not(feature = "captcha"))]
     fn refresh_captcha(self: &Rc<Self>) {}
 
-    /// Sharing and connecting wait on the same registration, so one captcha
-    /// window serves both.
+    /// Sharing and connecting each register on their own connection; their
+    /// challenges are shown one at a time and each token goes back to the
+    /// registration that asked for it.
     #[cfg(feature = "captcha")]
     fn refresh_captcha(self: &Rc<Self>) {
         if self.captcha_window.borrow().is_some() {
             return;
         }
-        let Some(challenge) = self.hosting.captcha().or_else(|| self.viewer.captcha()) else { return };
+        let (sharing, challenge) = match (self.hosting.captcha(), self.viewer.captcha()) {
+            (Some(challenge), _) => (true, challenge),
+            (None, Some(challenge)) => (false, challenge),
+            (None, None) => return,
+        };
         let weak = Rc::downgrade(self);
         let window = captcha::present(&self.window, &challenge, move |token| {
             let Some(this) = weak.upgrade() else { return };
-            // Sharing registers first so a retried connection reuses its
-            // registration instead of sending the token a second time.
-            let sharing = this.hosting.captcha().is_some();
             if sharing {
-                this.hosting.solve_captcha(token.clone());
+                this.hosting.solve_captcha(token);
+            } else {
+                this.viewer.solve_captcha(token);
             }
-            if !this.viewer.solve_captcha(token) {
-                return;
-            }
-            glib::spawn_future_local(async move {
-                for _ in 0..60 {
-                    if !sharing || this.hosting.identifier().is_some() || !this.hosting.is_running() {
-                        break;
-                    }
-                    glib::timeout_future(std::time::Duration::from_millis(250)).await;
-                }
-                let size = this.local_screen_size();
-                this.viewer.connect(size);
-            });
         });
         let weak = Rc::downgrade(self);
         window.connect_close_request(move |_| {
             if let Some(this) = weak.upgrade() {
                 this.captcha_window.borrow_mut().take();
-                this.hosting.dismiss_captcha();
-                this.viewer.dismiss_captcha();
+                // After a solved captcha the challenge is already gone.
+                if sharing {
+                    this.hosting.dismiss_captcha();
+                } else {
+                    this.viewer.dismiss_captcha();
+                }
+                // Show a challenge that is still waiting, if any.
+                let next = this.clone();
+                glib::idle_add_local_once(move || next.refresh_captcha());
             }
             glib::Propagation::Proceed
         });

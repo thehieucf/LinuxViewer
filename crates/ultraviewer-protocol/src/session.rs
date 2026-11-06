@@ -86,6 +86,11 @@ pub enum SessionEvent {
     Clipboard(String),
     ComputerAudio(Vec<u8>),
     Cursor(CursorMessage),
+    /// UltraViewer wants a person to solve a captcha before it registers this
+    /// computer. The command connection stays open, as in the Windows client,
+    /// because the server forgets the challenge once it closes. Answer with
+    /// [`SessionHandle::solve_captcha`].
+    CaptchaRequired(CaptchaChallenge),
     /// The session ended; `None` is an orderly close.
     Closed(Option<SessionError>),
 }
@@ -133,8 +138,6 @@ pub enum SessionError {
     Protocol(String),
     #[error("This computer's client profile is invalid: {0}")]
     Registration(String),
-    #[error("UltraViewer asks you to solve a captcha before it gives this computer an ID.")]
-    CaptchaRequired(CaptchaChallenge),
 }
 
 impl From<TransportError> for SessionError {
@@ -180,6 +183,7 @@ enum Command {
     SetClipboardSharing { enabled: bool, reply: Reply },
     SendClipboard { text: String, reply: Reply },
     RefreshScreen { reply: Reply },
+    SolveCaptcha { token: String },
     Close { reply: oneshot::Sender<()> },
 }
 
@@ -227,6 +231,12 @@ impl SessionHandle {
 
     pub async fn refresh_screen(&self) -> Result<(), SessionError> {
         self.request(|reply| Command::RefreshScreen { reply }).await
+    }
+
+    /// Registers again with the token from the captcha page of the last
+    /// [`SessionEvent::CaptchaRequired`].
+    pub fn solve_captcha(&self, token: String) {
+        let _ = self.commands.send(Command::SolveCaptcha { token });
     }
 
     /// Tells an active host that this viewer is leaving, then closes.
@@ -292,6 +302,7 @@ pub fn connect(configuration: SessionConfiguration, partner_id: &str, password: 
         deadline: None,
         heartbeat_at: None,
         command_keepalive_at: None,
+        awaiting_captcha: false,
         renderer: None,
         registration_reply: None,
         peer_info: None,
@@ -400,6 +411,8 @@ struct Actor {
     heartbeat_at: Option<Instant>,
     /// The command service drops idle registrations after roughly a minute.
     command_keepalive_at: Option<Instant>,
+    /// Registration answered with a captcha challenge that is not solved yet.
+    awaiting_captcha: bool,
     renderer: Option<ModernScreenRenderer>,
     registration_reply: Option<ClientRegistrationReply>,
     peer_info: Option<PeerInfo>,
@@ -558,6 +571,7 @@ impl Actor {
                 }
                 let _ = reply.send(result);
             }
+            Command::SolveCaptcha { token } => self.solve_captcha(token).await,
             Command::Close { reply } => {
                 self.close_gracefully().await;
                 let _ = reply.send(());
@@ -651,6 +665,9 @@ impl Actor {
                     // keepalives; an established peer stream continues without it.
                     if self.phase == Phase::Active {
                         log::warn!("command connection closed during an active session: {error:?}");
+                    } else if self.awaiting_captcha {
+                        // Registering again with the token opens a new connection.
+                        log::warn!("command connection closed while waiting for the captcha: {error:?}");
                     } else {
                         self.finish(Some(error.map(SessionError::from).unwrap_or(SessionError::Closed))).await;
                     }
@@ -738,7 +755,13 @@ impl Actor {
     async fn consume_command(&mut self, bytes: &[u8]) -> Result<(), SessionError> {
         let RelayEnvelope::System { payload } = RelayEnvelope::decode(bytes)? else { return Ok(()) };
         if self.phase == Phase::Registering && payload.starts_with(b"60:") {
-            return Err(SessionError::CaptchaRequired(CaptchaChallenge::parse(&payload)?));
+            let challenge = CaptchaChallenge::parse(&payload)?;
+            // Solving can take longer than the registration timeout; the
+            // keepalive holds the connection the challenge belongs to.
+            self.awaiting_captcha = true;
+            self.deadline = None;
+            self.command_keepalive_at.get_or_insert(Instant::now() + COMMAND_KEEPALIVE);
+            self.emit(SessionEvent::CaptchaRequired(challenge)).await?;
         } else if self.phase == Phase::Registering && payload.starts_with(b"3:") {
             let reply = ClientRegistrationReply::parse(&payload)?;
             self.command_keepalive_at = Some(Instant::now() + COMMAND_KEEPALIVE);
@@ -747,6 +770,27 @@ impl Actor {
             self.lookup_replied(&payload).await?;
         }
         Ok(())
+    }
+
+    /// Like the Windows client, registers again on the connection that
+    /// received the challenge, now carrying the page's token.
+    async fn solve_captcha(&mut self, token: String) {
+        if self.phase != Phase::Registering || !self.awaiting_captcha {
+            return;
+        }
+        self.awaiting_captcha = false;
+        self.configuration.registration.captcha_token = token;
+        self.arm_deadline();
+        if self.command.is_none() {
+            return self.begin();
+        }
+        let result = match self.configuration.registration.relay_envelope(&LegacyCommandCipher::desktop_server_commands()) {
+            Ok(envelope) => self.command_send(&envelope).await,
+            Err(error) => Err(error.into()),
+        };
+        if let Err(error) = result {
+            self.finish(Some(error)).await;
+        }
     }
 
     async fn registered(&mut self, reply: ClientRegistrationReply) -> Result<(), SessionError> {
@@ -1577,6 +1621,7 @@ fn reject(command: Command) {
         | Command::SetClipboardSharing { reply, .. }
         | Command::SendClipboard { reply, .. }
         | Command::RefreshScreen { reply } => reply,
+        Command::SolveCaptcha { .. } => return,
         Command::Close { reply } => {
             let _ = reply.send(());
             return;

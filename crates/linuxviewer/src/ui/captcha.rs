@@ -28,6 +28,10 @@ const BRIDGE: &str = r#"(function () {
     has: function () { return true; }
   });
   try { Object.defineProperty(window, "external", { value: external, configurable: true }); } catch (e) {}
+  // The page derives a hidden field from whether String.prototype.includes
+  // exists, and the server expects the value of the Windows client's
+  // Internet Explorer control, which has no includes.
+  try { delete String.prototype.includes; } catch (e) {}
 })();"#;
 
 #[derive(serde::Deserialize)]

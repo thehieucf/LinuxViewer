@@ -69,6 +69,11 @@ pub enum HostEvent {
     Typing { session: ViewerId, active: bool },
     Clipboard { session: ViewerId, text: String },
     SideSwitchRequested { session: ViewerId, request: SideSwitchApproval },
+    /// UltraViewer wants a person to solve a captcha before it assigns an ID.
+    /// The command connection stays open, as in the Windows client: the
+    /// server forgets the challenge once that connection closes. Answer with
+    /// [`HostHandle::solve_captcha`].
+    CaptchaRequired(CaptchaChallenge),
     /// Hosting stopped; `None` is an orderly stop.
     Stopped(Option<HostError>),
 }
@@ -83,8 +88,6 @@ pub enum HostError {
     RelayUnavailable,
     #[error("The incoming UltraViewer connection timed out.")]
     TimedOut,
-    #[error("UltraViewer asks you to solve a captcha before it gives this computer an ID.")]
-    CaptchaRequired(CaptchaChallenge),
     #[error("The remote viewer requested an unsupported screen color mode. Use 16-bit color.")]
     UnsupportedDisplay,
     #[error("{0}")]
@@ -141,6 +144,7 @@ enum Command {
     SendPayload { session: ViewerId, payload: Vec<u8>, reply: Reply },
     Registration { reply: oneshot::Sender<Option<ClientRegistrationReply>> },
     Lookup { plaintext: Vec<u8>, correlation: i32, reply: Reply<Vec<u8>> },
+    SolveCaptcha { token: String },
     Stop { reply: oneshot::Sender<()> },
 }
 
@@ -158,6 +162,12 @@ impl HostHandle {
 
     pub async fn approve(&self, id: ViewerId, first_frame: HostedScreenFrame, allows_control: bool) -> Result<(), HostError> {
         self.request(|reply| Command::Approve { id, first_frame, allows_control, reply }).await
+    }
+
+    /// Registers again with the token from the captcha page of the last
+    /// [`HostEvent::CaptchaRequired`].
+    pub fn solve_captcha(&self, token: String) {
+        let _ = self.commands.send(Command::SolveCaptcha { token });
     }
 
     pub fn decline(&self, id: ViewerId) {
@@ -297,6 +307,7 @@ pub fn start(configuration: HostConfiguration) -> Result<HostStreams, HostError>
         default_relay_addresses: String::new(),
         default_relay_hostnames: String::new(),
         registered: false,
+        awaiting_captcha: false,
         registration_reply: None,
         lookups: std::collections::HashMap::new(),
         registration_deadline: None,
@@ -422,6 +433,8 @@ struct HostActor {
     default_relay_addresses: String,
     default_relay_hostnames: String,
     registered: bool,
+    /// Registration answered with a captcha challenge that is not solved yet.
+    awaiting_captcha: bool,
     registration_reply: Option<ClientRegistrationReply>,
     lookups: std::collections::HashMap<i32, Reply<Vec<u8>>>,
     registration_deadline: Option<Instant>,
@@ -683,6 +696,7 @@ impl HostActor {
                     }
                 }
             }
+            Command::SolveCaptcha { token } => self.solve_captcha(token).await,
             Command::Stop { reply } => {
                 self.stop().await;
                 let _ = reply.send(());
@@ -737,6 +751,12 @@ impl HostActor {
                         self.finish(Some(error)).await;
                     }
                 }
+                ReaderEvent::Closed(error) if self.awaiting_captcha => {
+                    // Registering again with the token opens a new connection.
+                    log::warn!("command connection closed while waiting for the captcha: {error:?}");
+                    self.command = None;
+                    self.command_id += 1;
+                }
                 ReaderEvent::Closed(error) => {
                     self.command_failed(error.map(HostError::from).unwrap_or(HostError::RelayUnavailable)).await;
                 }
@@ -777,7 +797,12 @@ impl HostActor {
         let tag = system_tag(payload, b':');
         if tag == "60" && !self.registered {
             let challenge = CaptchaChallenge::parse(payload)?;
-            self.finish(Some(HostError::CaptchaRequired(challenge))).await;
+            // Solving can take longer than the registration timeout; the
+            // keepalive holds the connection the challenge belongs to.
+            self.awaiting_captcha = true;
+            self.registration_deadline = None;
+            self.keepalive_at.get_or_insert(Instant::now() + Duration::from_secs(30));
+            self.emit(HostEvent::CaptchaRequired(challenge)).await;
         } else if tag == "3" && !self.registered {
             let reply = ClientRegistrationReply::parse(payload)?;
             self.default_relay_addresses = reply.ping_list().to_string();
@@ -1063,7 +1088,13 @@ impl HostActor {
 
     async fn keepalive(&mut self) {
         self.keepalive_at = Some(Instant::now() + Duration::from_secs(30));
-        if self.registered {
+        if self.awaiting_captcha && self.command.is_some() {
+            if let Err(error) = self.command_send_raw(&RelayKeepalive::command_envelope()).await {
+                log::warn!("command keepalive failed while waiting for the captcha: {error}");
+                self.command = None;
+                self.command_id += 1;
+            }
+        } else if self.registered {
             // A dead route only surfaces as a TCP timeout after many minutes,
             // while the server has long dropped this registration.
             let result = if self.command_heard.elapsed() > COMMAND_SILENCE {
@@ -1104,6 +1135,27 @@ impl HostActor {
         self.reconnect_attempts += 1;
         self.reconnect_at = Some(Instant::now() + Duration::from_secs(delay));
         self.emit(HostEvent::Reconnecting).await;
+    }
+
+    /// Like the Windows client, registers again on the connection that
+    /// received the challenge, now carrying the page's token.
+    async fn solve_captcha(&mut self, token: String) {
+        if !self.awaiting_captcha {
+            return;
+        }
+        self.awaiting_captcha = false;
+        self.configuration.registration.captcha_token = token;
+        if self.command.is_none() {
+            return self.open_command();
+        }
+        self.registration_deadline = Some(Instant::now() + Duration::from_secs(20));
+        let result = match self.configuration.registration.relay_envelope(&LegacyCommandCipher::desktop_server_commands()) {
+            Ok(envelope) => self.command_send_raw(&envelope).await,
+            Err(error) => Err(error.into()),
+        };
+        if let Err(error) = result {
+            self.command_failed(error).await;
+        }
     }
 
     async fn send(&mut self, payload: &[u8], route: Route) -> Result<(), HostError> {
@@ -1190,6 +1242,7 @@ fn reject(command: Command) {
         | Command::SubmitFrame { .. }
         | Command::EndViewer { .. }
         | Command::SendTyping { .. }
-        | Command::DeclineSideSwitch { .. } => {}
+        | Command::DeclineSideSwitch { .. }
+        | Command::SolveCaptcha { .. } => {}
     }
 }

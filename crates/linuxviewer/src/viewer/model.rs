@@ -81,9 +81,9 @@ struct State {
     generation: u64,
     session: Option<SessionHandle>,
     pending_credential: Option<(String, String)>,
-    /// Registration stopped for UltraViewer's captcha; the connection is
-    /// retried with these credentials once it is solved.
-    captcha: Option<(CaptchaChallenge, String, String)>,
+    /// Registration waits, on its open connection, for the person to solve
+    /// UltraViewer's captcha.
+    captcha: Option<CaptchaChallenge>,
     frame: Option<FrameUpdate>,
     queue: Option<Arc<InputQueue>>,
     encoder: Option<Arc<Mutex<RemoteInputEncoder>>>,
@@ -239,26 +239,38 @@ impl ViewerModel {
 
     #[cfg_attr(not(feature = "captcha"), allow(dead_code))]
     pub fn captcha(&self) -> Option<CaptchaChallenge> {
-        self.state.borrow().captcha.as_ref().map(|(challenge, _, _)| challenge.clone())
+        self.state.borrow().captcha.clone()
     }
 
+    /// The waiting session registers again with the captcha page's token.
     #[cfg_attr(not(feature = "captcha"), allow(dead_code))]
-    /// Restores the interrupted connection's credentials; returns whether
-    /// `connect` should be called again.
-    pub fn solve_captcha(&self, token: String) -> bool {
-        crate::profile::set_captcha_token(token);
-        let mut state = self.state.borrow_mut();
-        let Some((_, id, password)) = state.captcha.take() else { return false };
-        state.partner_id = id;
-        state.password = password;
-        true
-    }
-
-    #[cfg_attr(not(feature = "captcha"), allow(dead_code))]
-    pub fn dismiss_captcha(&self) {
-        if self.state.borrow_mut().captcha.take().is_some() {
-            self.notify(Change::State);
+    pub fn solve_captcha(&self, token: String) {
+        crate::profile::set_captcha_token(token.clone());
+        let session = {
+            let mut state = self.state.borrow_mut();
+            if state.captcha.take().is_none() {
+                return;
+            }
+            state.status = tr("Registering this computer…");
+            state.session.clone()
+        };
+        if let Some(session) = session {
+            session.solve_captcha(token);
         }
+        self.notify(Change::State);
+    }
+
+    /// The captcha window was closed, which abandons this connection attempt.
+    #[cfg_attr(not(feature = "captcha"), allow(dead_code))]
+    pub fn dismiss_captcha(self: &Rc<Self>) {
+        let generation = {
+            let mut state = self.state.borrow_mut();
+            if state.captcha.take().is_none() {
+                return;
+            }
+            state.generation
+        };
+        self.fail(tr("Solve UltraViewer's captcha to continue connecting."), generation);
     }
 
     pub fn clear_error(&self) {
@@ -503,17 +515,23 @@ impl ViewerModel {
                 }
             }
             SessionEvent::Cursor(message) => self.cursor_message(message),
+            SessionEvent::CaptchaRequired(challenge) => {
+                if self.phase() != Phase::Connecting {
+                    return;
+                }
+                if !cfg!(feature = "captcha") {
+                    return self.fail(crate::profile::captcha_message("Solve UltraViewer's captcha to continue connecting."), generation);
+                }
+                {
+                    let mut state = self.state.borrow_mut();
+                    state.captcha = Some(challenge);
+                    state.status = tr("Solve UltraViewer's captcha to continue connecting.");
+                }
+                self.notify(Change::State);
+            }
             SessionEvent::Closed(error) => {
                 let phase = self.phase();
                 match (phase, error) {
-                    (Phase::Connecting, Some(SessionError::CaptchaRequired(challenge))) => {
-                        let credential = self.state.borrow().pending_credential.clone();
-                        self.fail(crate::profile::captcha_message("Solve UltraViewer's captcha to continue connecting."), generation);
-                        if let Some((id, password)) = credential {
-                            self.state.borrow_mut().captcha = Some((challenge, id, password));
-                            self.notify(Change::State);
-                        }
-                    }
                     (Phase::Connecting, Some(error)) => self.fail(error_text(&error), generation),
                     (Phase::Connecting, None) => self.fail(tr("The connection ended before the other computer authenticated the session."), generation),
                     (Phase::Connected, Some(error)) => {
@@ -695,6 +713,7 @@ impl ViewerModel {
             let mut state = self.state.borrow_mut();
             state.generation += 1;
             state.pending_credential = None;
+            state.captcha = None;
             state.phase = Phase::Disconnected;
             state.status = if had_connected { tr("The remote session ended with an error.") } else { tr("The connection could not be established.") };
             state.error = Some(message);
@@ -718,6 +737,7 @@ impl ViewerModel {
             let mut state = self.state.borrow_mut();
             state.generation += 1;
             state.pending_credential = None;
+            state.captcha = None;
             state.phase = Phase::Disconnected;
             state.status = message;
             if error.is_some() {

@@ -17,3 +17,7 @@ registration*.json
 .idea/
 *.swp
 *~
+
+# UltraViewer Windows binaries kept locally for reverse engineering
+/UltraViewer/
+/UltraViewer_setup_*.exe

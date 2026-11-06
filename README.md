@@ -6,6 +6,22 @@
 > LinuxViewer là bản triển khai độc lập, không phải sản phẩm chính thức của UltraViewer.
 > Chỉ kết nối tới máy tính bạn được phép truy cập.
 
+<p align="center">
+  <img src="docs/images/home.png" alt="Màn hình chính của LinuxViewer: kết nối đến máy khác và chia sẻ máy tính này" width="820">
+</p>
+
+## Cách dùng nhanh
+
+1. **Điều khiển máy khác**: nhập *ID đối tác* và *Mật khẩu đối tác* mà máy kia (UltraViewer trên Windows hoặc
+   LinuxViewer) đang hiển thị, rồi bấm **Kết nối đến máy khác**. Bật *Điều khiển* trên thanh công cụ của phiên
+   để dùng bàn phím và chuột.
+2. **Cho người khác điều khiển máy này**: bấm **Bắt đầu chia sẻ máy này**, gửi ID và mật khẩu hiện ra cho người kia.
+   Mỗi yêu cầu kết nối đều phải được bạn chấp thuận; desktop sẽ hỏi chọn màn hình cần chia sẻ.
+3. Lần đầu đăng ký, UltraViewer có thể hiện cửa sổ **Xác minh máy tính này** (captcha). Thường cửa sổ tự đóng
+   sau vài giây. Nếu được hỏi, nhập mã trong ảnh rồi bấm Confirm.
+4. Khi có phiên bản mới, một dải thông báo **Đã có LinuxViewer x.y.z** hiện trên màn hình chính (kèm thông báo
+   của desktop). Bấm **Tải về** để mở trang phát hành.
+
 ## Cấu trúc
 
 ```
@@ -43,7 +59,7 @@ Fedora: `sudo dnf install gtk4-devel libadwaita-devel webkitgtk6.0-devel openssl
 
 ```sh
 git clone https://github.com/thehieucf/LinuxViewer.git && cd LinuxViewer
-cargo test --workspace            # 53 test
+cargo test --workspace            # 55 test
 cargo build --release
 ./target/release/linuxviewer
 ```
@@ -78,6 +94,13 @@ cần cho chế độ cho phép điều khiển trên compositor không có port
   RemoteDesktop, **uinput** (Hyprland/sway — cần quyền ghi `/dev/uinput`, ví dụ thuộc nhóm `input`) hoặc XTest (X11);
   chấp thuận từng kết nối, chỉ xem/cho phép điều khiển, chat, clipboard.
 - Giao diện Tiếng Việt / English (Cài đặt → Ngôn ngữ; mặc định theo `LC_MESSAGES`).
+- **Thông báo cập nhật**: hỏi GitHub Releases khi mở ứng dụng và mỗi 12 giờ; có bản mới thì hiện dải thông báo và
+  thông báo desktop (mỗi phiên bản một lần). Tắt ở Cài đặt → Cập nhật. Yêu cầu này chỉ gửi tới `api.github.com`
+  tên và phiên bản ứng dụng, không gửi dữ liệu nào khác.
+
+<p align="center">
+  <img src="docs/images/settings.png" alt="Hộp thoại Cài đặt: ngôn ngữ, lịch sử, màn hình từ xa, kết nối và cập nhật" width="420">
+</p>
 
 ## Gõ tiếng Việt khi điều khiển từ xa
 
@@ -96,7 +119,7 @@ dễ bị sai dấu.
 - Viewer chờ tối đa 60s để máy kia chấp thuận (thay vì 20s).
 - Atlas JPEG nhiều cột của UltraViewer 6.6 (màn hình lớn, ví dụ 2240×1400) bị Windows làm tròn chiều cao xuống,
   mất 1–2 ô cuối; LinuxViewer bỏ qua các ô đó thay vì từ chối cả khung hình (bản Mac báo "invalid image tile").
-- Không có kiểm tra cập nhật tự động (cập nhật qua trình quản lý gói hoặc build lại).
+- Có thông báo khi GitHub có bản phát hành mới (bản Mac không có). Việc cài đặt vẫn qua trình quản lý gói hoặc build lại.
 - Hỗ trợ captcha của UltraViewer (lệnh server 60, bản Mac chưa có): khi máy mới đăng ký lần đầu, server có thể
   yêu cầu giải captcha trước khi cấp ID. LinuxViewer mở trang xác minh của UltraViewer trong cửa sổ WebKitGTK,
   nhận token qua `window.external.FromJS_CaptchaCorrect` như bản Windows rồi đăng ký lại trên chính kết nối đã

@@ -1,6 +1,6 @@
 # Arch Linux package built from this source tree:  cd packaging && makepkg -si
 pkgname=linuxviewer
-pkgver=0.1.2
+pkgver=0.1.3
 pkgrel=1
 pkgdesc="UltraViewer-compatible remote desktop client for Linux"
 url='https://github.com/thehieucf/LinuxViewer'

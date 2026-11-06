@@ -28,6 +28,7 @@ pub mod zstd;
 
 mod jpeg;
 mod tls;
+pub use tls::trust_system_roots;
 mod util;
 
 pub use audio::{ComputerAudioMessage, G722Decoder};

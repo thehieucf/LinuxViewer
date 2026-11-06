@@ -107,7 +107,9 @@ fn parse_release(body: &[u8]) -> Result<Option<Release>, String> {
 /// The newest published release, verified over TLS against the system's CAs.
 async fn fetch_latest() -> Result<Option<Release>, String> {
     let tcp = tokio::net::TcpStream::connect((API_HOST, 443)).await.map_err(|e| e.to_string())?;
-    let connector = SslConnector::builder(SslMethod::tls_client()).map_err(|e| e.to_string())?.build();
+    let mut builder = SslConnector::builder(SslMethod::tls_client()).map_err(|e| e.to_string())?;
+    ultraviewer_protocol::trust_system_roots(&mut builder);
+    let connector = builder.build();
     let ssl = connector.configure().and_then(|c| c.into_ssl(API_HOST)).map_err(|e| e.to_string())?;
     let mut stream = SslStream::new(ssl, tcp).map_err(|e| e.to_string())?;
     Pin::new(&mut stream).connect().await.map_err(|e| e.to_string())?;
